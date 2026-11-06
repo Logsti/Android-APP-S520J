@@ -1,0 +1,18 @@
+# Gradle / Android
+.gradle/
+build/
+local.properties
+*.iml
+.idea/
+captures/
+.externalNativeBuild/
+.cxx/
+
+# 产物
+dist/*.apk
+*.keystore
+*.jks
+
+# 系统
+.DS_Store
+Thumbs.db

@@ -1,0 +1,8 @@
+﻿tag=v0.1.4-fix4
+variant=debug
+versionCode=104
+builtAt=2026-11-06 15:36:17
+apk=S520J-v0.1.4-fix4-debug.apk
+sizeBytes=21451180
+jdk=C:\Users\song9\.local\share\android-toolchain\jdk17
+androidSdk=C:\Users\song9\.local\share\android-toolchain\sdk
