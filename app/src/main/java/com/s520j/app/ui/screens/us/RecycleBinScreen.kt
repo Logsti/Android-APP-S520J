@@ -36,6 +36,7 @@ import com.s520j.app.ui.util.toDayTitle
 fun RecycleBinScreen(vm: AppViewModel, onBack: () -> Unit) {
     val flow = remember { vm.recycleBin() }
     val records by flow.collectAsState(initial = emptyList())
+    val isReadOnly by vm.isReadOnly.collectAsState()
     var pendingPurge by remember { mutableStateOf<ContentRecord?>(null) }
 
     PageContainer {
@@ -91,17 +92,19 @@ fun RecycleBinScreen(vm: AppViewModel, onBack: () -> Unit) {
                             TagPill("由 ${record.ownerName} 记录")
                         }
                     }
-                    Spacer(Modifier.height(4.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        TextButton(onClick = { vm.restoreRecord(record.id) }) {
-                            Text("恢复", color = S520JColors.Primary)
-                        }
-                        Spacer(Modifier.weight(1f))
-                        TextButton(onClick = { pendingPurge = record }) {
-                            Text("彻底删除", color = MaterialTheme.colorScheme.error)
+                    if (!isReadOnly) {
+                        Spacer(Modifier.height(4.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            TextButton(onClick = { vm.restoreRecord(record.id) }) {
+                                Text("恢复", color = S520JColors.Primary)
+                            }
+                            Spacer(Modifier.weight(1f))
+                            TextButton(onClick = { pendingPurge = record }) {
+                                Text("彻底删除", color = MaterialTheme.colorScheme.error)
+                            }
                         }
                     }
                 }

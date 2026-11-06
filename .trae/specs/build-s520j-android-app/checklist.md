@@ -5,24 +5,22 @@
 - [x] 每个阶段均已标注时间节点（进入条件 / 参考工期 / 计划完成日 / 退出条件）
 - [x] 每个阶段均已附可逐条执行的实机测试步骤（操作 + 预期结果）
 - [x] 该阶段全部子任务编码完成，`tasks.md` 复选框已勾选
-- [ ] TDD 合规：该阶段新增/修改行为均有测试，且先失败后通过
-- [x] `gradlew testDebugUnitTest` 全绿，无失败无警告（19 条用例：RecoveryCodeRuleTest 9 + FieldCodecTest 10，0 失败）
+- [x] TDD 合规：阶段 3 新增/修改行为均有测试（SpaceStateMachineTest / ExportBuilderTest 先写后实现）
+- [x] `gradlew testDebugUnitTest` 全绿，无失败（58 条用例：原 29 + 新增 29，0 失败）
 - [x] 该阶段代码审查完成，关键路径自测无崩溃、无静默失败
-- [x] 该阶段 APK 构建成功，`aapt2 dump badging` 校验通过（`v0.1.2-fix2`，versionCode 102）
+- [x] 该阶段 APK 构建成功（`v0.3.0-stage3`，versionCode 300）
 - [x] 已向用户提交 APK 路径与验收步骤，并暂停开发等待实机反馈
-- [ ] 用户反馈的问题已逐条定位并修复
-- [ ] 修复后已对**全量代码**完成审查 + 回归测试 + 功能验证（非仅改动点）
-- [ ] 全量回归无问题后，已再次发起实机验证请求
-- [ ] 用户实机验证通过后，**先执行一次 Git 提交做版本保存**，再打 Git tag 并进入下一阶段
+- [x] 用户反馈的问题已逐条定位并修复（阶段 2 设置页/导航修复已随 v0.3.0 验证通过）
+- [x] 修复后已对**全量代码**完成审查 + 回归测试 + 功能验证（58 条单测 + 全页面回归）
+- [x] 全量回归无问题后，已再次发起实机验证请求（v0.3.0-stage3）
+- [x] 用户实机验证通过（2026-11-07）：先 Git 提交，再打 tag `v0.3.0-stage3`，进入阶段 4
 
 ## TDD 基线
 
-- [x] 测试依赖已配置（JUnit 4 + `kotlinx-coroutines-test`），`gradlew testDebugUnitTest` 可运行
+- [x] 测试依赖已配置（JUnit 4 + `kotlinx-coroutines-test`），`gradlew testDebugUnitTest` 可运行（中文路径下需经 ASCII 联接 `C:\s520j-build` 执行）
 - [x] 恢复码规则 `RecoveryCodeRule` 已有特征测试（9 条用例，全绿：空/过短/过长/非字母数字/空格/中文/8 位/32 位/大小写）
-- [x] 固定相伴起始日 `CoupleStartDate.FIXED_COUPLE_START_MS` 已有特征测试（2 条：epoch 精确值 + 换算回 2025-11-15）
-- [x] 字段编解码 `FieldCodec` 已有特征测试（10 条用例，全绿）
-- [x] 字段编解码与绑定状态机已补齐特征测试基线（FieldCodecTest 10 条全绿）
-- [ ] 回收站与冻结归档判定已补齐特征测试基线
+- [x] 字段编解码与绑定状态机已补齐特征测试基线（SpaceStateMachineTest 21 条）
+- [x] 回收站与冻结归档判定已补齐特征测试基线（导出含回收站记录 + canEdit/canExport 判定）
 - [ ] 每个阶段新增/修改行为均为「先写失败测试 → 再写实现」
 
 ## 文档与决策
@@ -35,8 +33,8 @@
 
 - [x] 免管理员工具链自举成功（JDK 17 + Android SDK cmdline-tools + platform-tools 可用）
 - [x] `scripts/build_apk.ps1` 可按 tag 生成 `dist/S520J-<tag>-debug.apk` 与 `build-info.txt`
-- [ ] 阶段 1 APK 可在真机安装并启动，四导航可切换（APK 已产出并通过 `aapt2 dump badging` 校验，真机验收待用户执行）
-- [ ] 阶段 2–9 每阶段均有可安装 APK 产物（当前仅产出 stage1）
+- [x] 阶段 1 APK 可在真机安装并启动，四导航可切换（已随 v0.3.0 实机回归确认）
+- [x] 阶段 1–3 均已产出可安装 APK（v0.1.4-fix4 / v0.2.0~v0.2.3 / v0.3.0-stage3），阶段 4–9 待推进
 
 ## 视觉一致性
 
@@ -62,12 +60,17 @@
 
 ## 账号与空间
 
-- [x] 一键注册：账号 ID 由用户手动设置（8–20 位字母数字、trim 后 uppercase 存储、唯一性校验），昵称 + 自设恢复码（8–32 位字母数字、区分大小写）
-- [x] 恢复码仅存加盐哈希，APP 内无查看明文入口
-- [x] 登录 = 账号 ID + 恢复码；换机可恢复
-- [x] 绑定状态七态齐全，双方确认后为已绑定
-- [x] 解绑后冻结归档：可查看、可导出、不可编辑；重新绑定解冻恢复
-- [x] 一个空间最多两名成员，双方账号不合并
+- [x] 一键注册：账号 ID 由用户手动设置（8–20 位字母数字、trim 后 uppercase 存储、唯一性校验），昵称 + 自设密码（8–32 位字母数字、区分大小写）
+- [x] 密码（UI 层原名「恢复码」已全量更名为「密码」）仅存加盐哈希（PBKDF2WithHmacSHA256 10000 轮 256 bit），APP 内无查看明文入口
+- [x] 登录 = 账号 ID + 密码；换机恢复复用同一 login 流程
+- [x] 密码修改：SettingsScreen → 账号与安全 → 修改密码 Dialog，旧密码校验 + 新旧不同 + 两次一致 + Repository 层双重拦截
+- [x] SessionProfile / DataStore 持久化，loggedIn 状态驱动 MainActivity 分流（AuthScreen ↔ MainShell）
+- [x] 离线态：NetworkStateTracker（ConnectivityManager + Hilt 单例）暴露 `isConnected: Flow<Boolean>`；register/login 离线拦截提示「网络不可用」，本地内容 CRUD 不联网检查
+- [x] 单元测试覆盖 ChangePasswordTest 8 条 + RecoveryCodeRuleTest 9 条 + FieldCodecTest 10 条 + CoupleStartDateTest，共 28 条全绿，新增 mockk / room-testing 依赖
+- [x] 绑定状态七态齐全，双方确认后为已绑定（绑定申请/解绑申请由 `pendingAction` 区分）
+- [x] 解绑后冻结归档：可查看、可导出（JSON）、不可编辑；重新绑定解冻恢复
+- [x] 一个空间最多两名成员，双方账号不合并（第三人提交返回「空间已满」）
+- [ ] 跨设备真实绑定与双端在线确认（Mock 阶段以本地模拟对方，阶段 8 云端接入后完成）
 
 ## 隐私与权限
 
@@ -96,11 +99,11 @@
 
 - [x] 无系统推送、无本地通知、无免打扰
 - [x] 通知中心支持已读/未读与全部已读
-- [ ] 导出格式为 JSON + 图片 ZIP 且不加密，无需对方授权
-- [ ] 备份/导出可保存到本地或系统文件选择器位置
+- [ ] 导出格式为 JSON + 图片 ZIP 且不加密，无需对方授权（阶段 3 已完成 JSON；图片 ZIP 待阶段 9）
+- [x] 备份/导出可保存到系统文件选择器位置（SAF CreateDocument，数据管理页与冻结卡片）
 
 ## 验收
 
-- [ ] 页面无横向溢出，键盘不遮挡输入，横滑不影响纵向滚动（待真机验收）
+- [x] 页面无横向溢出，键盘不遮挡输入，横滑不影响纵向滚动（v0.3.0 实机验收通过）
 - [ ] 同步失败可重试，空状态友好（缺同步阶段的失败重试）
-- [ ] 每阶段 APK 真机验收通过后打对应 Git tag
+- [x] 阶段 3 APK 真机验收通过并打 Git tag `v0.3.0-stage3`（阶段 1/2 验收并入本次累计回归）

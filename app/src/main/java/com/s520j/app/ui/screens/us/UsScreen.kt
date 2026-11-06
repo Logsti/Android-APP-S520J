@@ -7,8 +7,10 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -17,6 +19,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -44,8 +47,12 @@ import com.s520j.app.ui.theme.S520JColors
 fun UsScreen(
     vm: AppViewModel,
     onOpenSpace: () -> Unit,
-    onOpenSettings: () -> Unit,
+    onOpenAccountSecurity: () -> Unit,
     onOpenPrivacy: () -> Unit,
+    onOpenDataManagement: () -> Unit,
+    onOpenReminderSettings: () -> Unit,
+    onOpenAppSettings: () -> Unit,
+    onOpenPreferenceSettings: () -> Unit,
     onOpenNotifications: () -> Unit,
     onOpenAbout: () -> Unit,
     onOpenRecycle: () -> Unit,
@@ -59,17 +66,22 @@ fun UsScreen(
 
     PageContainer {
         Spacer(Modifier.height(28.dp))
-        Text(
-            text = "我们",
-            style = MaterialTheme.typography.displayLarge,
-            color = S520JColors.TextPrimary
-        )
-        Spacer(Modifier.height(6.dp))
-        Text(
-            text = "两个人，两段独立的人生，一个共同的空间。",
-            style = MaterialTheme.typography.bodyMedium,
-            color = S520JColors.TextSecondary
-        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(
+                    text = "我们",
+                    style = MaterialTheme.typography.displayLarge,
+                    color = S520JColors.TextPrimary
+                )
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    text = "两个人，两段独立的人生，一个共同的空间。",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = S520JColors.TextSecondary
+                )
+            }
+            NotificationBell(unread = unread, onClick = onOpenNotifications)
+        }
 
         Spacer(Modifier.height(16.dp))
 
@@ -112,15 +124,17 @@ fun UsScreen(
         SoftCard {
             SettingRow("共同空间", "绑定、解绑与冻结归档", onOpenSpace)
             SettingDivider()
+            SettingRow("账号与安全", "账号信息与密码管理", onOpenAccountSecurity)
+            SettingDivider()
             SettingRow("隐私与权限", "仅自己可见 / 共同可见", onOpenPrivacy)
             SettingDivider()
-            SettingRow("数据管理", "回收站与导出", onOpenRecycle)
+            SettingRow("数据管理", "回收站、清理缓存、导出与备份", onOpenDataManagement)
             SettingDivider()
-            SettingRow("提醒设置", "双方各自设置提醒时间", onOpenSettings)
+            SettingRow("提醒设置", "双方各自设置提醒时间", onOpenReminderSettings)
             SettingDivider()
-            SettingRow("应用设置", "字体大小、主题与语言", onOpenSettings)
+            SettingRow("应用设置", "字体大小、主题与语言", onOpenAppSettings)
             SettingDivider()
-            SettingRow("通知中心", if (unread > 0) "$unread 条未读" else "全部已读", onOpenNotifications)
+            SettingRow("个性化偏好", "首页问候语与个人偏好", onOpenPreferenceSettings)
         }
 
         Spacer(Modifier.height(Dimens.SectionGap))
@@ -148,6 +162,43 @@ fun UsScreen(
         }
 
         Spacer(Modifier.height(40.dp))
+    }
+}
+
+@Composable
+private fun NotificationBell(unread: Int, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .size(44.dp)
+            .clip(CircleShape)
+            .background(S520JColors.Surface)
+            .clickable { onClick() },
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            Icons.Outlined.Notifications,
+            contentDescription = "通知",
+            tint = S520JColors.TextPrimary,
+            modifier = Modifier.size(22.dp)
+        )
+        if (unread > 0) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .offset(x = 2.dp, y = (-2).dp)
+                    .size(if (unread > 9) 18.dp else 18.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xFFE55757)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = if (unread > 9) "9+" else unread.toString(),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
     }
 }
 

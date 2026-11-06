@@ -58,6 +58,7 @@ fun GalleryScreen(
 ) {
     val photosFlow = remember { vm.contents(ContentModule.PHOTO) }
     val photos by photosFlow.collectAsState(initial = emptyList())
+    val isReadOnly by vm.isReadOnly.collectAsState()
     val dishesFlow = remember { vm.contents(ContentModule.DISH) }
     val dishes by dishesFlow.collectAsState(initial = emptyList())
     val shopsFlow = remember { vm.contents(ContentModule.SHOP) }
@@ -183,18 +184,20 @@ fun GalleryScreen(
             Spacer(Modifier.height(96.dp))
         }
 
-        // 仅拾光页有悬浮新增按钮
-        FloatingActionButton(
-            onClick = { onOpenModule(ContentModule.PHOTO) },
-            containerColor = S520JColors.Primary,
-            contentColor = Color.White,
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(end = 22.dp, bottom = 20.dp)
-                .size(Dimens.FabSize),
-            shape = RoundedCornerShape(999.dp)
-        ) {
-            Icon(Icons.Filled.Add, contentDescription = "新增")
+        // 仅拾光页有悬浮新增按钮；冻结归档时隐藏
+        if (!isReadOnly) {
+            FloatingActionButton(
+                onClick = { onOpenModule(ContentModule.PHOTO) },
+                containerColor = S520JColors.Primary,
+                contentColor = Color.White,
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(end = 22.dp, bottom = 20.dp)
+                    .size(Dimens.FabSize),
+                shape = RoundedCornerShape(999.dp)
+            ) {
+                Icon(Icons.Filled.Add, contentDescription = "新增")
+            }
         }
     }
 }

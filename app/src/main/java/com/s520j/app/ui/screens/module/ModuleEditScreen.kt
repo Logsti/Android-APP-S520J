@@ -66,6 +66,7 @@ fun ModuleEditScreen(
 ) {
     val flow = remember(module) { vm.contents(module) }
     val records by flow.collectAsState(initial = emptyList())
+    val isReadOnly by vm.isReadOnly.collectAsState()
     val existing = remember(recordId, records) { records.firstOrNull { it.id == recordId } }
 
     var title by remember { mutableStateOf("") }
@@ -103,6 +104,23 @@ fun ModuleEditScreen(
     PageContainer {
         BackBar(title = if (existing == null) "新增${module.label}" else "编辑${module.label}", onBack = onBack)
         Spacer(Modifier.height(6.dp))
+
+        if (isReadOnly) {
+            SoftCard(containerColor = S520JColors.Sand) {
+                Text(
+                    text = "只读",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = S520JColors.TextPrimary
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = "空间已冻结归档，共同内容只读，无法修改或新增。",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = S520JColors.TextSecondary
+                )
+            }
+            Spacer(Modifier.height(Dimens.CardGap))
+        }
 
         SoftCard {
             SoftTextField(
@@ -318,7 +336,8 @@ fun ModuleEditScreen(
                 )
                 onBack()
             },
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
+            enabled = !isReadOnly
         )
 
         Spacer(Modifier.height(40.dp))

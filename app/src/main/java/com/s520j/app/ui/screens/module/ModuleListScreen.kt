@@ -53,6 +53,7 @@ fun ModuleListScreen(
 ) {
     val flow = remember(module) { vm.contents(module) }
     val records by flow.collectAsState(initial = emptyList())
+    val isReadOnly by vm.isReadOnly.collectAsState()
     var query by remember { mutableStateOf("") }
     var pendingDelete by remember { mutableStateOf<ContentRecord?>(null) }
 
@@ -61,15 +62,19 @@ fun ModuleListScreen(
     }
 
     PageContainer {
-        BackBar(
-            title = module.label,
-            onBack = onBack,
-            action = {
-                IconButton(onClick = { onEdit(null) }) {
-                    Icon(Icons.Filled.Add, contentDescription = "新增", tint = S520JColors.Primary)
+        if (isReadOnly) {
+            BackBar(title = module.label, onBack = onBack)
+        } else {
+            BackBar(
+                title = module.label,
+                onBack = onBack,
+                action = {
+                    IconButton(onClick = { onEdit(null) }) {
+                        Icon(Icons.Filled.Add, contentDescription = "新增", tint = S520JColors.Primary)
+                    }
                 }
-            }
-        )
+            )
+        }
         Spacer(Modifier.height(6.dp))
         SoftTextField(
             value = query,
@@ -83,7 +88,7 @@ fun ModuleListScreen(
             SoftCard {
                 EmptyState(
                     text = if (query.isBlank()) "这里还没有内容" else "没有匹配的记录",
-                    actionLabel = if (query.isBlank()) "新增一条" else null
+                    actionLabel = if (query.isBlank() && !isReadOnly) "新增一条" else null
                 ) { onEdit(null) }
             }
         } else {
@@ -114,13 +119,15 @@ fun ModuleListScreen(
                         Spacer(Modifier.width(8.dp))
                         Column(horizontalAlignment = Alignment.End) {
                             VisibilityChip(record.visibility)
-                            IconButton(onClick = { pendingDelete = record }) {
-                                Icon(
-                                    Icons.Outlined.DeleteOutline,
-                                    contentDescription = "删除",
-                                    tint = S520JColors.TextSecondary,
-                                    modifier = Modifier.size(18.dp)
-                                )
+                            if (!isReadOnly) {
+                                IconButton(onClick = { pendingDelete = record }) {
+                                    Icon(
+                                        Icons.Outlined.DeleteOutline,
+                                        contentDescription = "删除",
+                                        tint = S520JColors.TextSecondary,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
                             }
                         }
                     }

@@ -1,8 +1,8 @@
-﻿tag=v0.1.4-fix4
+﻿tag=v0.3.0-stage3
 variant=debug
-versionCode=104
-builtAt=2026-11-06 15:36:17
-apk=S520J-v0.1.4-fix4-debug.apk
-sizeBytes=21451180
-jdk=C:\Users\song9\.local\share\android-toolchain\jdk17
-androidSdk=C:\Users\song9\.local\share\android-toolchain\sdk
+versionCode=300
+builtAt=2026-11-06 23:51:39
+apk=S520J-v0.3.0-stage3-debug.apk
+sizeBytes=21516779
+jdk=C:\Program Files\Eclipse Adoptium\jdk-17.0.21.9-hotspot
+androidSdk=C:\Android\Sdk

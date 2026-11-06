@@ -47,7 +47,12 @@ data class SpaceEntity(
     val createdBy: String,
     val partnerUserId: String?,
     val createdAt: Long,
-    val updatedAt: Long
+    val updatedAt: Long,
+    val pendingAction: String? = null,
+    val bindRequestedBy: String? = null,
+    val unbindRequestedBy: String? = null,
+    val ownerConfirmedAt: Long? = null,
+    val partnerConfirmedAt: Long? = null
 )
 
 @Entity(tableName = "space_members", primaryKeys = ["spaceId", "userId"])

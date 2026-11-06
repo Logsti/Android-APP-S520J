@@ -2,6 +2,8 @@ package com.s520j.app.ui
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.s520j.app.data.connectivity.NetworkStateTracker
+import com.s520j.app.data.export.ExportBuilder
 import com.s520j.app.data.local.BindState
 import com.s520j.app.data.local.NotificationEntity
 import com.s520j.app.data.local.SpaceEntity
@@ -14,14 +16,18 @@ import com.s520j.app.data.repository.AuthRepository
 import com.s520j.app.data.repository.AuthResult
 import com.s520j.app.data.repository.ContentRepository
 import com.s520j.app.data.repository.SpaceRepository
+import com.s520j.app.data.space.SpaceStateMachine
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.util.UUID
 import javax.inject.Inject
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -33,7 +39,8 @@ class AppViewModel @Inject constructor(
     private val contentRepository: ContentRepository,
     private val authRepository: AuthRepository,
     private val spaceRepository: SpaceRepository,
-    private val notificationDao: com.s520j.app.data.local.NotificationDao
+    private val notificationDao: com.s520j.app.data.local.NotificationDao,
+    private val networkTracker: NetworkStateTracker
 ) : ViewModel() {
 
     val session: StateFlow<SessionProfile> = prefs.session
@@ -47,6 +54,16 @@ class AppViewModel @Inject constructor(
 
     val space: StateFlow<SpaceEntity?> = spaceRepository.observeSpace()
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
+    /** 冻结归档时为只读；无空间时保持可编辑。 */
+    val isReadOnly: StateFlow<Boolean> = spaceRepository.observeSpace()
+        .map { spaceRepository.isReadOnly(it) }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    private val _bindFailure = MutableStateFlow<String?>(null)
+
+    /** 本次登录内最近一次绑定失败原因（可清除）。 */
+    val bindFailure: StateFlow<String?> = _bindFailure
 
     val notifications: StateFlow<List<NotificationEntity>> = notificationDao.observeAll()
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
@@ -72,6 +89,10 @@ class AppViewModel @Inject constructor(
     // ---------- 会话与账号 ----------
 
     fun register(accountId: String, nickname: String, recoveryCode: String) = viewModelScope.launch {
+        if (!networkTracker.currentConnected()) {
+            _messages.send("网络不可用，请检查后重试")
+            return@launch
+        }
         try {
             when (val result = authRepository.register(accountId, nickname, recoveryCode)) {
                 is AuthResult.Failure -> _messages.send(result.message)
@@ -86,6 +107,10 @@ class AppViewModel @Inject constructor(
     }
 
     fun login(accountId: String, recoveryCode: String) = viewModelScope.launch {
+        if (!networkTracker.currentConnected()) {
+            _messages.send("网络不可用，请检查后重试")
+            return@launch
+        }
         try {
             when (val result = authRepository.login(accountId, recoveryCode)) {
                 is AuthResult.Failure -> _messages.send(result.message)
@@ -97,6 +122,10 @@ class AppViewModel @Inject constructor(
     }
 
     fun changeRecoveryCode(oldCode: String, newCode: String) = viewModelScope.launch {
+        if (oldCode == newCode) {
+            _messages.send("新旧密码不能相同")
+            return@launch
+        }
         when (val result = authRepository.changeRecoveryCode(oldCode, newCode)) {
             is AuthResult.Failure -> _messages.send(result.message)
             is AuthResult.Success -> _messages.send("密码已更新")
@@ -104,7 +133,9 @@ class AppViewModel @Inject constructor(
     }
 
     fun logout() = viewModelScope.launch {
-        spaceRepository.currentSpace()?.let { spaceRepository.confirmUnbind(it) }
+        spaceRepository.currentSpace()?.let {
+            spaceRepository.freeze(it, System.currentTimeMillis())
+        }
         authRepository.logout()
         _messages.send("已退出登录")
     }
@@ -143,6 +174,10 @@ class AppViewModel @Inject constructor(
         photoType: String,
         extra: Map<String, String> = emptyMap()
     ) = viewModelScope.launch {
+        if (isReadOnly.value) {
+            _messages.send(READ_ONLY_MESSAGE)
+            return@launch
+        }
         if (title.isBlank()) {
             _messages.send("请填写标题")
             return@launch
@@ -157,7 +192,7 @@ class AppViewModel @Inject constructor(
         val record = ContentRecord(
             id = existing?.id ?: "rec-${UUID.randomUUID()}",
             module = module,
-            spaceId = "space-local",
+            spaceId = space.value?.id,
             ownerId = snapshot.userId.ifBlank { "local-user" },
             ownerName = snapshot.nickname,
             visibility = visibility,
@@ -176,16 +211,28 @@ class AppViewModel @Inject constructor(
     }
 
     fun deleteRecord(id: String) = viewModelScope.launch {
+        if (isReadOnly.value) {
+            _messages.send(READ_ONLY_MESSAGE)
+            return@launch
+        }
         contentRepository.softDelete(id)
         _messages.send("已移入回收站，保留 30 天")
     }
 
     fun restoreRecord(id: String) = viewModelScope.launch {
+        if (isReadOnly.value) {
+            _messages.send(READ_ONLY_MESSAGE)
+            return@launch
+        }
         contentRepository.restore(id)
         _messages.send("已恢复")
     }
 
     fun purgeRecord(id: String) = viewModelScope.launch {
+        if (isReadOnly.value) {
+            _messages.send(READ_ONLY_MESSAGE)
+            return@launch
+        }
         contentRepository.purge(id)
         _messages.send("已彻底删除")
     }
@@ -195,43 +242,135 @@ class AppViewModel @Inject constructor(
     fun createSpace(name: String, intro: String) = viewModelScope.launch {
         val snapshot = prefs.sessionSnapshot()
         spaceRepository.createSpace(name, intro, snapshot)
+        _bindFailure.value = null
         _messages.send("共同空间已创建")
     }
 
-    fun refreshBindCode() = viewModelScope.launch {
-        space.value?.let { spaceRepository.refreshBindCode(it) }
-    }
-
-    fun submitBindCode(code: String) = viewModelScope.launch {
-        val snapshot = prefs.sessionSnapshot()
-        val (spaceEntity, error) = spaceRepository.submitBindCode(code, snapshot.userId)
-        if (error != null) _messages.send(error)
-        if (spaceEntity != null && error == null) _messages.send("已提交绑定申请，请双方各确认一次")
-    }
-
-    fun confirmBind() = viewModelScope.launch {
+    fun shareInvite() = viewModelScope.launch {
         val current = space.value ?: return@launch
-        spaceRepository.confirmBind(current, prefs.sessionSnapshot().partnerNickname.ifBlank { "TA" })
-        _messages.send("已绑定")
+        spaceRepository.shareInvite(current, System.currentTimeMillis())
+        _bindFailure.value = null
+        _messages.send("已分享给对方，开始等待对方加入")
+    }
+
+    fun refreshBindCode() = viewModelScope.launch {
+        val current = space.value ?: return@launch
+        spaceRepository.refreshBindCode(current, System.currentTimeMillis())
+        _bindFailure.value = null
+        _messages.send("绑定码已刷新，24 小时内有效")
+    }
+
+    // Mock 阶段：单机只有一份本地库，输入绑定码一律按“模拟对方提交”处理，
+    // 这样创建者本人才能完成「我方确认 + 对方确认」两次操作；真实跨设备加入在云端阶段实现。
+    fun submitBindCode(code: String) = viewModelScope.launch {
+        val createdAt = System.currentTimeMillis()
+        val result = spaceRepository.submitBindCode(
+            code = code,
+            applicantId = SIM_PARTNER_ID,
+            applicantName = "TA",
+            now = createdAt
+        )
+        _bindFailure.value = result.error
+        if (result.error == null) {
+            _messages.send("已提交绑定申请，请双方各确认一次")
+        }
+    }
+
+    fun clearBindFailure() {
+        _bindFailure.value = null
+    }
+
+    fun confirmBindAsOwner() = viewModelScope.launch {
+        val current = space.value ?: return@launch
+        val snapshot = prefs.sessionSnapshot()
+        val updated = spaceRepository.confirmBind(
+            space = current,
+            actorId = snapshot.userId,
+            partnerNickname = snapshot.partnerNickname.ifBlank { "TA" },
+            now = System.currentTimeMillis()
+        )
+        _messages.send(bindConfirmMessage(updated, simulated = false))
+    }
+
+    fun confirmBindAsPartner() = viewModelScope.launch {
+        val current = space.value ?: return@launch
+        val snapshot = prefs.sessionSnapshot()
+        val updated = spaceRepository.confirmBind(
+            space = current,
+            actorId = current.partnerUserId ?: SIM_PARTNER_ID,
+            partnerNickname = snapshot.partnerNickname.ifBlank { "TA" },
+            now = System.currentTimeMillis()
+        )
+        _messages.send(bindConfirmMessage(updated, simulated = true))
     }
 
     fun requestUnbind() = viewModelScope.launch {
-        space.value?.let { spaceRepository.requestUnbind(it) }
-        _messages.send("已发起解绑，等待对方确认")
+        val current = space.value ?: return@launch
+        spaceRepository.requestUnbind(
+            space = current,
+            requesterId = prefs.sessionSnapshot().userId,
+            now = System.currentTimeMillis()
+        )
+        _messages.send("已发起解绑，等待双方各确认一次")
     }
 
-    fun confirmUnbind() = viewModelScope.launch {
-        space.value?.let { spaceRepository.confirmUnbind(it) }
-        _messages.send("已解绑，空间进入冻结归档")
+    fun confirmUnbindAsOwner() = viewModelScope.launch {
+        val current = space.value ?: return@launch
+        val updated = spaceRepository.confirmUnbind(
+            space = current,
+            actorId = prefs.sessionSnapshot().userId,
+            now = System.currentTimeMillis()
+        )
+        _messages.send(unbindConfirmMessage(updated, simulated = false))
+    }
+
+    fun confirmUnbindAsPartner() = viewModelScope.launch {
+        val current = space.value ?: return@launch
+        val updated = spaceRepository.confirmUnbind(
+            space = current,
+            actorId = current.partnerUserId ?: SIM_PARTNER_ID,
+            now = System.currentTimeMillis()
+        )
+        _messages.send(unbindConfirmMessage(updated, simulated = true))
     }
 
     fun rebind() = viewModelScope.launch {
-        space.value?.let { spaceRepository.rebind(it) }
-        _messages.send("空间已解冻，请重新绑定")
+        val current = space.value ?: return@launch
+        spaceRepository.rebind(current, System.currentTimeMillis())
+        _bindFailure.value = null
+        _messages.send("空间已解冻，历史内容保留")
     }
 
-    fun bindState(): BindState? = space.value?.bindState?.let { raw ->
-        BindState.entries.firstOrNull { it.name == raw }
+    /** 导出 JSON：合并正常内容与回收站内容，按 id 去重后回调到主线程。 */
+    fun exportJson(onReady: (String) -> Unit) = viewModelScope.launch {
+        val merged = (contentRepository.observeAll().first() + contentRepository.observeRecycleBin().first())
+            .distinctBy { it.id }
+        val json = ExportBuilder.build(
+            space = space.value,
+            session = prefs.sessionSnapshot(),
+            records = merged,
+            exportedAt = System.currentTimeMillis()
+        )
+        onReady(json)
+    }
+
+    fun bindState(): BindState? = SpaceStateMachine.stateOf(space.value?.bindState)
+
+    private fun bindConfirmMessage(updated: SpaceEntity, simulated: Boolean): String = when {
+        SpaceStateMachine.stateOf(updated.bindState) == BindState.BOUND -> "已绑定，双方账号各自独立"
+        simulated -> "对方已确认（本地演示），等待我方确认"
+        else -> "我方已确认，等待对方确认"
+    }
+
+    private fun unbindConfirmMessage(updated: SpaceEntity, simulated: Boolean): String = when {
+        SpaceStateMachine.stateOf(updated.bindState) == BindState.FROZEN -> "已解绑，空间进入冻结归档"
+        simulated -> "对方已确认解绑（本地演示），等待我方确认"
+        else -> "我方已确认解绑，等待对方确认"
+    }
+
+    private companion object {
+        const val READ_ONLY_MESSAGE = "空间已冻结归档，当前为只读状态，无法编辑共同内容"
+        const val SIM_PARTNER_ID = "sim-partner"
     }
 
     // ---------- 设置 ----------

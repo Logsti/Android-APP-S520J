@@ -1,12 +1,12 @@
 package com.s520j.app.data.repository
 
-import android.util.Base64
 import com.s520j.app.data.CoupleStartDate
 import com.s520j.app.data.local.S520JDatabase
 import com.s520j.app.data.local.UserEntity
 import com.s520j.app.data.prefs.SessionProfile
 import com.s520j.app.data.prefs.UserPreferences
 import java.security.SecureRandom
+import java.util.Base64
 import javax.crypto.SecretKeyFactory
 import javax.crypto.spec.PBEKeySpec
 import javax.inject.Inject
@@ -106,6 +106,8 @@ class AuthRepository @Inject constructor(
     }
 
     suspend fun changeRecoveryCode(oldCode: String, newCode: String): AuthResult {
+        if (oldCode.isEmpty()) return AuthResult.Failure("请输入旧密码")
+        if (oldCode == newCode) return AuthResult.Failure("新旧密码不能相同")
         RecoveryCodeRule.validate(newCode)?.let { return AuthResult.Failure(it) }
         val user = userDao.currentUser() ?: return AuthResult.Failure("请先登录")
         if (hash(oldCode, user.recoverySalt) != user.recoveryHash) {
@@ -120,7 +122,7 @@ class AuthRepository @Inject constructor(
 
     private fun randomSalt(): String {
         val bytes = ByteArray(16).also { SecureRandom().nextBytes(it) }
-        return Base64.encodeToString(bytes, Base64.NO_WRAP)
+        return Base64.getEncoder().encodeToString(bytes)
     }
 
     /** PBKDF2 加盐哈希：数据库中永不出现密码明文。 */
@@ -128,6 +130,6 @@ class AuthRepository @Inject constructor(
         val spec = PBEKeySpec(code.toCharArray(), salt.toByteArray(), 10_000, 256)
         val factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256")
         val bytes = factory.generateSecret(spec).encoded
-        return Base64.encodeToString(bytes, Base64.NO_WRAP)
+        return Base64.getEncoder().encodeToString(bytes)
     }
 }

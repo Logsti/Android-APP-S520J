@@ -13,6 +13,7 @@ val s520jVersionCode: Int = (project.findProperty("s520jVersionCode") as String?
 android {
     namespace = "com.s520j.app"
     compileSdk = 35
+    buildToolsVersion = "36.0.0"
 
     defaultConfig {
         applicationId = "com.s520j.app"
@@ -88,6 +89,8 @@ dependencies {
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.room.testing)
+    testImplementation(libs.mockk)
 
     androidTestImplementation(libs.androidx.test.junit)
 }
