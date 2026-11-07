@@ -8,6 +8,7 @@ import com.s520j.app.data.local.toRecord
 import com.s520j.app.data.model.ContentModule
 import com.s520j.app.data.model.ContentRecord
 import com.s520j.app.data.model.Visibility
+import com.s520j.app.domain.heart.QuickRecordRouter
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import javax.inject.Inject
@@ -58,6 +59,18 @@ class ContentRepository @Inject constructor(
 
     suspend fun count(): Int = contentDao.count()
 
+    /** 一次性迁移：旧快速记录按类型路由，RECENT_MOMENT 整体搬入浪漫时刻。 */
+    suspend fun migrateTaxonomyV2() {
+        val originals = contentDao.listAll().map { it.toRecord() }
+        val migrated = QuickRecordRouter.migrate(originals)
+        val changed = migrated.filterIndexed { index, record ->
+            record.module != originals[index].module || record.extra != originals[index].extra
+        }
+        if (changed.isNotEmpty()) {
+            contentDao.upsertAll(changed.map { it.toEntity() })
+        }
+    }
+
     suspend fun seedIfEmpty(ownerId: String, ownerName: String) {
         if (contentDao.count() > 0) return
         val now = System.currentTimeMillis()
@@ -76,22 +89,24 @@ private object SeedData {
             eventDate = now, extra = mapOf("type" to "共同计划")),
         rec(ContentModule.CALENDAR_EVENT, "纪念日", "认识的第 520 天。", now - day * 30, ownerId, ownerName,
             eventDate = now - day * 30, extra = mapOf("type" to "纪念日")),
-        rec(ContentModule.RECENT_MOMENT, "一起做晚饭", "番茄牛腩，厨房很暖。", now - day, ownerId, ownerName,
+        rec(ContentModule.ROMANTIC_MOMENT, "一起做晚饭", "番茄牛腩，厨房很暖。", now - day, ownerId, ownerName,
             eventDate = now - day),
-        rec(ContentModule.RECENT_MOMENT, "夜里的散步", "绕小区走了三圈。", now - day * 3, ownerId, ownerName,
+        rec(ContentModule.ROMANTIC_MOMENT, "夜里的散步", "绕小区走了三圈。", now - day * 3, ownerId, ownerName,
             eventDate = now - day * 3),
-        rec(ContentModule.PHOTO, "海边的风", "第一次一起看海。", now - day * 5, ownerId, ownerName,
-            eventDate = now - day * 5, extra = mapOf("category" to "旅行")),
+        rec(ContentModule.TRAVEL, "海边的风", "第一次一起看海。", now - day * 5, ownerId, ownerName,
+            eventDate = now - day * 5),
         rec(ContentModule.PHOTO, "窗台的绿植", "新买的小盆栽。", now - day * 8, ownerId, ownerName,
-            eventDate = now - day * 8, extra = mapOf("category" to "日常")),
+            eventDate = now - day * 8),
         rec(ContentModule.PHOTO, "生日蛋糕", "今年一起过的第一个生日。", now - day * 12, ownerId, ownerName,
-            eventDate = now - day * 12, extra = mapOf("category" to "纪念日")),
+            eventDate = now - day * 12),
         rec(ContentModule.PHOTO, "深夜的汤面", "楼下小店的宵夜。", now - day * 15, ownerId, ownerName,
-            eventDate = now - day * 15, extra = mapOf("category" to "探店")),
+            eventDate = now - day * 15),
         rec(ContentModule.DISH, "番茄牛腩", "小火炖了两个小时。", now - day, ownerId, ownerName,
-            eventDate = now - day, extra = mapOf("星级" to "5", "是否再做" to "愿意")),
+            eventDate = now - day, extra = mapOf("星级" to "5", "是否再做" to "愿意", "榜单" to "松记")),
         rec(ContentModule.DISH, "提拉米苏", "第一次做甜点。", now - day * 6, ownerId, ownerName,
-            eventDate = now - day * 6, extra = mapOf("星级" to "4", "是否再做" to "愿意")),
+            eventDate = now - day * 6, extra = mapOf("星级" to "4", "是否再做" to "愿意", "榜单" to "锦记")),
+        rec(ContentModule.DISH, "糖醋排骨", "收汁的时候特别香。", now - day * 9, ownerId, ownerName,
+            eventDate = now - day * 9, extra = mapOf("星级" to "5", "榜单" to "锦记")),
         rec(ContentModule.SHOP, "转角咖啡", "手冲很稳，位置安静。", now - day * 4, ownerId, ownerName,
             eventDate = now - day * 4, extra = mapOf("地址" to "老街 12 号", "星级" to "5")),
         rec(ContentModule.SHOP, "小面馆", "浇头给得足。", now - day * 11, ownerId, ownerName,

@@ -38,6 +38,7 @@ enum class ContentModule(
     PHOTO(ModuleGroup.GALLERY, "共同照片", Visibility.COUPLE, needsPhoto = true),
     DISH(ModuleGroup.GALLERY, "一起做过的菜", Visibility.COUPLE, needsPhoto = true, supportsRating = true),
     SHOP(ModuleGroup.GALLERY, "一起去过的店", Visibility.COUPLE, needsPhoto = true, supportsRating = true),
+    TRAVEL(ModuleGroup.GALLERY, "一起去过的城市", Visibility.COUPLE, needsPhoto = true),
     COLLECTED_MOMENT(ModuleGroup.GALLERY, "收藏的瞬间", Visibility.COUPLE, needsPhoto = true),
 
     IMPORTANT_DAY(ModuleGroup.TACIT, "重要日子", Visibility.COUPLE, needsPhoto = true),

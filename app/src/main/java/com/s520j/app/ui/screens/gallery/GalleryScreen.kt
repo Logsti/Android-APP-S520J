@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -32,11 +33,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
 import com.s520j.app.data.model.ContentModule
 import com.s520j.app.data.model.ContentRecord
 import com.s520j.app.data.model.Visibility
+import com.s520j.app.domain.gallery.StarBoard
+import com.s520j.app.domain.heart.PhotoFeed
 import com.s520j.app.ui.AppViewModel
 import com.s520j.app.ui.components.EmptyState
 import com.s520j.app.ui.components.PageContainer
@@ -49,26 +55,26 @@ import com.s520j.app.ui.util.toDayTitle
 import com.s520j.app.ui.util.today
 import com.s520j.app.ui.util.weekdayName
 
-private val photoCategories = listOf("全部", "做饭", "探店", "旅行", "日常", "纪念日")
-
 @Composable
 fun GalleryScreen(
     vm: AppViewModel,
-    onOpenModule: (ContentModule) -> Unit
+    onOpenModule: (ContentModule) -> Unit,
+    onOpenRecord: (ContentModule, String) -> Unit
 ) {
-    val photosFlow = remember { vm.contents(ContentModule.PHOTO) }
-    val photos by photosFlow.collectAsState(initial = emptyList())
+    val allFlow = remember { vm.allContents() }
+    val records by allFlow.collectAsState(initial = emptyList())
     val isReadOnly by vm.isReadOnly.collectAsState()
-    val dishesFlow = remember { vm.contents(ContentModule.DISH) }
-    val dishes by dishesFlow.collectAsState(initial = emptyList())
-    val shopsFlow = remember { vm.contents(ContentModule.SHOP) }
-    val shops by shopsFlow.collectAsState(initial = emptyList())
-    val momentsFlow = remember { vm.contents(ContentModule.COLLECTED_MOMENT) }
-    val moments by momentsFlow.collectAsState(initial = emptyList())
 
-    var category by remember { mutableStateOf("全部") }
+    var category by remember { mutableStateOf(PhotoFeed.ALL) }
 
-    val filtered = if (category == "全部") photos else photos.filter { (it.extra["category"] ?: "日常") == category }
+    // 照片墙 = 五个带图来源，分类完全由 module 派生。
+    val feed = remember(records) { PhotoFeed.feed(records) }
+    val filtered = remember(feed, category) { PhotoFeed.filter(feed, category) }
+    val dishCount = remember(records) { records.count { it.module == ContentModule.DISH } }
+    val shopCount = remember(records) { records.count { it.module == ContentModule.SHOP } }
+    val travelCount = remember(records) { records.count { it.module == ContentModule.TRAVEL } }
+    val songStars = remember(records) { StarBoard.list(records, StarBoard.SONG) }
+    val jinStars = remember(records) { StarBoard.list(records, StarBoard.JIN) }
 
     Box(Modifier.fillMaxWidth()) {
         PageContainer {
@@ -105,15 +111,15 @@ fun GalleryScreen(
 
             Spacer(Modifier.height(Dimens.SectionGap))
 
-            // 四个统计入口：均可点击进入独立管理页
+            // 四个统计入口：共同照片切回「全部」tab，其余进入对应模块
             Row(horizontalArrangement = Arrangement.spacedBy(Dimens.CardGap)) {
-                StatCard("共同照片", photos.size, Modifier.weight(1f)) { onOpenModule(ContentModule.PHOTO) }
-                StatCard("一起做过的菜", dishes.size, Modifier.weight(1f)) { onOpenModule(ContentModule.DISH) }
+                StatCard("共同照片", feed.size, Modifier.weight(1f)) { category = PhotoFeed.ALL }
+                StatCard("一起做过的菜", dishCount, Modifier.weight(1f)) { onOpenModule(ContentModule.DISH) }
             }
             Spacer(Modifier.height(Dimens.CardGap))
             Row(horizontalArrangement = Arrangement.spacedBy(Dimens.CardGap)) {
-                StatCard("一起去过的店", shops.size, Modifier.weight(1f)) { onOpenModule(ContentModule.SHOP) }
-                StatCard("收藏的瞬间", moments.size, Modifier.weight(1f)) { onOpenModule(ContentModule.COLLECTED_MOMENT) }
+                StatCard("一起去过的店", shopCount, Modifier.weight(1f)) { onOpenModule(ContentModule.SHOP) }
+                StatCard("一起去过的城市", travelCount, Modifier.weight(1f)) { onOpenModule(ContentModule.TRAVEL) }
             }
 
             Spacer(Modifier.height(Dimens.SectionGap))
@@ -121,24 +127,25 @@ fun GalleryScreen(
             SectionHeader(
                 title = "照片墙",
                 subtitle = "两张一组的日常",
-                actionLabel = "全部照片",
-                onAction = { onOpenModule(ContentModule.PHOTO) }
+                actionLabel = "查看全部",
+                onAction = { onOpenModule(PhotoFeed.moduleOf(category) ?: ContentModule.PHOTO) }
             )
             Spacer(Modifier.height(8.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                photoCategories.forEach { item ->
+                PhotoFeed.categories.forEach { item ->
                     val selected = item == category
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(999.dp))
                             .background(if (selected) S520JColors.Primary else S520JColors.Surface)
                             .clickable { category = item }
-                            .padding(horizontal = 12.dp, vertical = 7.dp)
+                            .padding(horizontal = 11.dp, vertical = 7.dp)
                     ) {
                         Text(
                             text = item,
                             style = MaterialTheme.typography.labelSmall,
-                            color = if (selected) Color.White else S520JColors.TextSecondary
+                            color = if (selected) Color.White else S520JColors.TextSecondary,
+                            maxLines = 1
                         )
                     }
                 }
@@ -146,12 +153,18 @@ fun GalleryScreen(
             Spacer(Modifier.height(12.dp))
 
             if (filtered.isEmpty()) {
-                SoftCard { EmptyState("这个分类还没有照片", actionLabel = "去添加") { onOpenModule(ContentModule.PHOTO) } }
+                SoftCard {
+                    EmptyState("这个分类还没有照片", actionLabel = "去添加") {
+                        onOpenModule(PhotoFeed.moduleOf(category) ?: ContentModule.PHOTO)
+                    }
+                }
             } else {
                 filtered.chunked(2).forEach { pair ->
                     Row(horizontalArrangement = Arrangement.spacedBy(Dimens.CardGap)) {
                         pair.forEach { photo ->
-                            PhotoTile(photo, Modifier.weight(1f)) { onOpenModule(ContentModule.PHOTO) }
+                            PhotoTile(photo, Modifier.weight(1f)) {
+                                onOpenRecord(photo.module, photo.id)
+                            }
                         }
                         if (pair.size == 1) {
                             Spacer(Modifier.weight(1f))
@@ -163,23 +176,17 @@ fun GalleryScreen(
 
             Spacer(Modifier.height(Dimens.SectionGap))
 
-            SoftCard(onClick = { onOpenModule(ContentModule.DISH) }) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = "五星榜",
-                        style = MaterialTheme.typography.titleLarge,
-                        color = S520JColors.TextPrimary,
-                        modifier = Modifier.weight(1f)
-                    )
-                    TagPill("小锦鲤 · 许愿树")
-                }
-                Spacer(Modifier.height(6.dp))
-                Text(
-                    text = "只记录菜品、餐厅与体验，不评价人和关系。",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = S520JColors.TextSecondary
-                )
-            }
+            StarBoardCard(
+                title = "松记五星榜",
+                items = songStars,
+                onClick = { onOpenModule(ContentModule.DISH) }
+            )
+            Spacer(Modifier.height(Dimens.CardGap))
+            StarBoardCard(
+                title = "锦记五星榜",
+                items = jinStars,
+                onClick = { onOpenModule(ContentModule.DISH) }
+            )
 
             Spacer(Modifier.height(96.dp))
         }
@@ -219,7 +226,55 @@ private fun StatCard(title: String, count: Int, modifier: Modifier = Modifier, o
 }
 
 @Composable
+private fun StarBoardCard(
+    title: String,
+    items: List<ContentRecord>,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    SoftCard(modifier = modifier, onClick = onClick) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleLarge,
+                color = S520JColors.TextPrimary,
+                modifier = Modifier.weight(1f)
+            )
+            TagPill("5 星 · 自做饭菜")
+        }
+        Spacer(Modifier.height(6.dp))
+        if (items.isEmpty()) {
+            Text(
+                text = "还没有 5 星菜品",
+                style = MaterialTheme.typography.bodyMedium,
+                color = S520JColors.TextSecondary
+            )
+        } else {
+            items.take(3).forEach { dish ->
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = dish.title,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = S520JColors.TextPrimary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Text(
+                        text = "★★★★★",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = S520JColors.Primary
+                    )
+                }
+                Spacer(Modifier.height(4.dp))
+            }
+        }
+    }
+}
+
+@Composable
 private fun PhotoTile(photo: ContentRecord, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    val cover = photo.mediaIds.firstOrNull()
     Column(modifier = modifier) {
         Box(
             modifier = Modifier
@@ -230,12 +285,21 @@ private fun PhotoTile(photo: ContentRecord, modifier: Modifier = Modifier, onCli
                 .clickable { onClick() },
             contentAlignment = Alignment.Center
         ) {
-            Icon(
-                imageVector = Icons.Outlined.Photo,
-                contentDescription = null,
-                tint = S520JColors.PrimarySoft,
-                modifier = Modifier.size(34.dp)
-            )
+            if (cover != null) {
+                AsyncImage(
+                    model = cover,
+                    contentDescription = photo.title,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                Icon(
+                    imageVector = Icons.Outlined.Photo,
+                    contentDescription = null,
+                    tint = S520JColors.PrimarySoft,
+                    modifier = Modifier.size(34.dp)
+                )
+            }
             if (photo.visibility == Visibility.PRIVATE) {
                 Box(
                     modifier = Modifier
@@ -257,7 +321,7 @@ private fun PhotoTile(photo: ContentRecord, modifier: Modifier = Modifier, onCli
                     .padding(horizontal = 8.dp, vertical = 3.dp)
             ) {
                 Text(
-                    text = photo.extra["category"] ?: "日常",
+                    text = PhotoFeed.categoryOf(photo).orEmpty(),
                     style = MaterialTheme.typography.labelSmall,
                     color = S520JColors.TextSecondary
                 )

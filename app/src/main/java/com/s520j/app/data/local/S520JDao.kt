@@ -22,6 +22,9 @@ interface ContentDao {
     @Query("SELECT * FROM contents WHERE id = :id")
     suspend fun findById(id: String): ContentEntity?
 
+    @Query("SELECT * FROM contents")
+    suspend fun listAll(): List<ContentEntity>
+
     @Query("SELECT * FROM contents WHERE module = :module AND deletedAt IS NULL")
     suspend fun listByModule(module: String): List<ContentEntity>
 

@@ -16,4 +16,12 @@ object S520JColors {
     val TextSecondary = Color(0xFF858778)
     val Divider = Color(0xFFE8E2D5)
     val AccentPink = Color(0xFFF2E2D9)
+
+    // 心动页视觉升级（对照参考图补充）
+    val HeroStart = Color(0xFFA9BD93)
+    val HeroEnd = Color(0xFFD8CFA7)
+    val WarmBrown = Color(0xFF6B4E3D)
+    val DeepGreen = Color(0xFF4F6B45)
+    val ChipPeach = Color(0xFFF5E3D2)
+    val PureWhite = Color(0xFFFFFFFF)
 }

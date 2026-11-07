@@ -60,17 +60,18 @@ private val tacitEntries = listOf(
     TacitEntry(ContentModule.IMPORTANT_DAY, Icons.Filled.Cake, "重要日子"),
     TacitEntry(ContentModule.PROMISE, Icons.Filled.Handshake, "彼此的承诺"),
     TacitEntry(ContentModule.DEED, Icons.Filled.CardGiftcard, "为彼此做过"),
-    TacitEntry(ContentModule.ROMANTIC_MOMENT, Icons.Filled.Favorite, "浪漫时刻"),
     TacitEntry(ContentModule.RELATIONSHIP_RULE, Icons.Filled.Balance, "相处之道"),
     TacitEntry(ContentModule.LIKE, Icons.Filled.ThumbUp, "TA 的喜欢"),
     TacitEntry(ContentModule.DISLIKE, Icons.Filled.ThumbDown, "TA 不喜欢"),
-    TacitEntry(ContentModule.NOTE, Icons.Filled.Edit, "我们的笔记")
+    TacitEntry(ContentModule.NOTE, Icons.Filled.Edit, "我们的笔记"),
+    TacitEntry(ContentModule.ROMANTIC_MOMENT, Icons.Filled.Favorite, "浪漫时刻")
 )
 
 @Composable
 fun TacitScreen(
     vm: AppViewModel,
-    onOpenModule: (ContentModule) -> Unit
+    onOpenModule: (ContentModule) -> Unit,
+    onOpenRecord: (ContentModule, String) -> Unit
 ) {
     var selectedIndex by rememberSaveable { mutableIntStateOf(0) }
     val entry = tacitEntries[selectedIndex]

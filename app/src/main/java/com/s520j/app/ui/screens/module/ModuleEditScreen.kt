@@ -1,7 +1,9 @@
 package com.s520j.app.ui.screens.module
 
 import android.app.DatePickerDialog
+import android.content.Intent
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -42,6 +44,8 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.s520j.app.data.model.ContentModule
 import com.s520j.app.data.model.Visibility
+import com.s520j.app.domain.gallery.StarBoard
+import com.s520j.app.domain.heart.WishBoard
 import com.s520j.app.ui.AppViewModel
 import com.s520j.app.ui.components.BackBar
 import com.s520j.app.ui.components.PageContainer
@@ -55,13 +59,12 @@ import com.s520j.app.ui.util.epochMillis
 import com.s520j.app.ui.util.toLocalDate
 import java.time.LocalDate
 
-private val photoCategories = listOf("日常生活", "做饭", "探店", "旅行", "纪念日")
-
 @Composable
 fun ModuleEditScreen(
     vm: AppViewModel,
     module: ContentModule,
     recordId: String?,
+    preset: String? = null,
     onBack: () -> Unit
 ) {
     val flow = remember(module) { vm.contents(module) }
@@ -69,13 +72,24 @@ fun ModuleEditScreen(
     val isReadOnly by vm.isReadOnly.collectAsState()
     val existing = remember(recordId, records) { records.firstOrNull { it.id == recordId } }
 
+    // 日历入口带入的日期。
+    val presetDate = remember(module, preset) {
+        if (module == ContentModule.CALENDAR_EVENT) {
+            preset?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
+        } else {
+            null
+        }
+    }
+    val showPhoto = module.needsPhoto
+
     var title by remember { mutableStateOf("") }
     var content by remember { mutableStateOf("") }
     var visibility by remember { mutableStateOf(module.defaultVisibility) }
-    var eventDate by remember { mutableStateOf<Long?>(null) }
+    var eventDate by remember { mutableStateOf(presetDate?.epochMillis()) }
     var rating by remember { mutableStateOf(0) }
-    var category by remember { mutableStateOf("日常生活") }
+    var starBoard by remember { mutableStateOf(StarBoard.SONG) }
     var accepted by remember { mutableStateOf(false) }
+    var wishStatus by remember { mutableStateOf(WishBoard.PENDING) }
     val mediaUris = remember { mutableStateListOf<String>() }
     var loaded by remember { mutableStateOf(false) }
 
@@ -86,8 +100,9 @@ fun ModuleEditScreen(
             visibility = existing.visibility
             eventDate = existing.eventDate
             rating = existing.extra["星级"]?.toIntOrNull() ?: 0
-            category = existing.extra["category"] ?: "日常生活"
+            starBoard = StarBoard.boardOf(existing)
             accepted = existing.extra["确认"] == "双方已确认"
+            wishStatus = WishBoard.statusOf(existing)
             mediaUris.clear()
             mediaUris.addAll(existing.mediaIds)
             loaded = true
@@ -95,8 +110,20 @@ fun ModuleEditScreen(
     }
 
     val context = LocalContext.current
-    val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris ->
-        uris.forEach { mediaUris.add(it.toString()) }
+    val picker = rememberLauncherForActivityResult(
+        ActivityResultContracts.PickMultipleVisualMedia(4)
+    ) { uris ->
+        uris.take(4).forEach { uri ->
+            // 持久化读取权限，重启后照片墙仍能读取同一张图。
+            runCatching {
+                context.contentResolver.takePersistableUriPermission(
+                    uri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
+            }
+            val value = uri.toString()
+            if (value !in mediaUris) mediaUris.add(value)
+        }
     }
 
     val initialDate = (eventDate ?: System.currentTimeMillis()).toLocalDate()
@@ -200,7 +227,33 @@ fun ModuleEditScreen(
             }
         }
 
-        if (module.needsPhoto) {
+        if (module == ContentModule.WISH) {
+            Spacer(Modifier.height(Dimens.CardGap))
+            SoftCard {
+                Text("心愿状态", style = MaterialTheme.typography.titleMedium, color = S520JColors.TextPrimary)
+                Spacer(Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    WishBoard.statuses.forEach { status ->
+                        val selected = wishStatus == status
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(999.dp))
+                                .background(if (selected) S520JColors.PrimarySoft else S520JColors.Background)
+                                .clickable { wishStatus = status }
+                                .padding(horizontal = 12.dp, vertical = 8.dp)
+                        ) {
+                            Text(
+                                text = status,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = if (selected) S520JColors.Primary else S520JColors.TextSecondary
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        if (showPhoto) {
             Spacer(Modifier.height(Dimens.CardGap))
             SoftCard {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -210,7 +263,11 @@ fun ModuleEditScreen(
                         color = S520JColors.TextPrimary,
                         modifier = Modifier.weight(1f)
                     )
-                    TextButton(onClick = { picker.launch("image/*") }) {
+                    TextButton(onClick = {
+                        picker.launch(
+                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                        )
+                    }) {
                         Icon(Icons.Filled.PhotoCamera, contentDescription = null, tint = S520JColors.Primary, modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(4.dp))
                         Text("添加", color = S520JColors.Primary)
@@ -263,33 +320,36 @@ fun ModuleEditScreen(
                 }
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    text = "只用于菜品、餐厅与体验，不评价人和关系。",
+                    text = "只记录自己做的饭菜，给自己做的饭菜标星；探店不计入五星榜。",
                     style = MaterialTheme.typography.labelSmall,
                     color = S520JColors.TextSecondary
                 )
-            }
-        }
-
-        if (module == ContentModule.PHOTO) {
-            Spacer(Modifier.height(Dimens.CardGap))
-            SoftCard {
-                Text("分类", style = MaterialTheme.typography.titleMedium, color = S520JColors.TextPrimary)
-                Spacer(Modifier.height(8.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    photoCategories.forEach { item ->
-                        val selected = category == item
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(999.dp))
-                                .background(if (selected) S520JColors.PrimarySoft else S520JColors.Background)
-                                .clickable { category = item }
-                                .padding(horizontal = 10.dp, vertical = 6.dp)
-                        ) {
-                            Text(
-                                text = item,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = if (selected) S520JColors.TextPrimary else S520JColors.TextSecondary
-                            )
+                if (module == ContentModule.DISH) {
+                    Spacer(Modifier.height(10.dp))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = "记入榜单",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = S520JColors.TextSecondary
+                        )
+                        StarBoard.boards.forEach { board ->
+                            val selected = starBoard == board
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(999.dp))
+                                    .background(if (selected) S520JColors.PrimarySoft else S520JColors.Background)
+                                    .clickable { starBoard = board }
+                                    .padding(horizontal = 12.dp, vertical = 7.dp)
+                            ) {
+                                Text(
+                                    text = board,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = if (selected) S520JColors.Primary else S520JColors.TextSecondary
+                                )
+                            }
                         }
                     }
                 }
@@ -327,10 +387,17 @@ fun ModuleEditScreen(
                     visibility = visibility,
                     eventDate = eventDate,
                     rating = rating,
-                    photoType = if (module == ContentModule.PHOTO) category else "",
+                    mediaIds = mediaUris.toList(),
                     extra = buildMap {
                         if (module == ContentModule.RELATIONSHIP_RULE) {
                             put("确认", if (accepted) "双方已确认" else "等待对方确认")
+                        }
+                        if (module == ContentModule.WISH) {
+                            put("状态", wishStatus)
+                            put("提出人", existing?.extra?.get("提出人") ?: "我")
+                        }
+                        if (module == ContentModule.DISH) {
+                            put(StarBoard.KEY, starBoard)
                         }
                     }
                 )

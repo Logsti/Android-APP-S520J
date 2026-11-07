@@ -51,7 +51,7 @@ fun AuthScreen(vm: AppViewModel) {
     val snackbarHostState = remember { SnackbarHostState() }
 
     LaunchedEffect(Unit) {
-        vm.messages.collect { snackbarHostState.showSnackbar(it) }
+        vm.messages.collect { message -> snackbarHostState.showSnackbar(message.text) }
     }
 
     Box(

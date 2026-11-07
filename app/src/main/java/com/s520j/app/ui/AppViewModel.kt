@@ -9,6 +9,7 @@ import com.s520j.app.data.local.NotificationEntity
 import com.s520j.app.data.local.SpaceEntity
 import com.s520j.app.data.model.ContentModule
 import com.s520j.app.data.model.ContentRecord
+import com.s520j.app.data.model.ModuleGroup
 import com.s520j.app.data.model.Visibility
 import com.s520j.app.data.prefs.SessionProfile
 import com.s520j.app.data.prefs.UserPreferences
@@ -17,6 +18,11 @@ import com.s520j.app.data.repository.AuthResult
 import com.s520j.app.data.repository.ContentRepository
 import com.s520j.app.data.repository.SpaceRepository
 import com.s520j.app.data.space.SpaceStateMachine
+import com.s520j.app.domain.heart.ChallengeState
+import com.s520j.app.domain.heart.PhotoFeed
+import com.s520j.app.domain.heart.PokeAddResult
+import com.s520j.app.domain.heart.PokeCatalog
+import com.s520j.app.ui.util.today
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.util.UUID
 import javax.inject.Inject
@@ -31,6 +37,13 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+
+/** 顶栏提示：文本 + 可选动作（用于保存后「去看看」直达）。 */
+data class UiMessage(
+    val text: String,
+    val actionLabel: String? = null,
+    val targetModule: ContentModule? = null
+)
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
@@ -50,7 +63,20 @@ class AppViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.Eagerly, 1.0f)
 
     val greeting: StateFlow<String> = prefs.greeting
-        .stateIn(viewModelScope, SharingStarted.Eagerly, "今天也要好好喜欢彼此。")
+        .stateIn(viewModelScope, SharingStarted.Eagerly, "今天也要好好吃饭，好好想你。")
+
+    /** 今日心动挑战：按天重置，换一换偏移与双方确认均持久化。 */
+    val challenge: StateFlow<ChallengeState> = prefs.challengeState
+        .map { ChallengeState.forDay(ChallengeState.decode(it), today().toEpochDay()) }
+        .stateIn(
+            viewModelScope,
+            SharingStarted.Eagerly,
+            ChallengeState.forDay(null, today().toEpochDay())
+        )
+
+    /** 自定义碰碰你动作（默认动作由领域层拼接）。 */
+    val customPokes: StateFlow<List<String>> = prefs.customPokes
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     val space: StateFlow<SpaceEntity?> = spaceRepository.observeSpace()
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
@@ -73,8 +99,12 @@ class AppViewModel @Inject constructor(
 
     // 用 Channel 而不是 SharedFlow：登录/注册成功瞬间界面会从 AuthScreen 切到 MainShell，
     // SharedFlow 在该窗口内没有订阅者时消息会被丢弃；Channel 会把消息缓存到下个订阅者出现。
-    private val _messages = Channel<String>(Channel.BUFFERED)
+    private val _messages = Channel<UiMessage>(Channel.BUFFERED)
     val messages = _messages.receiveAsFlow()
+
+    private suspend fun send(text: String) {
+        _messages.send(UiMessage(text))
+    }
 
     fun contents(module: ContentModule) = contentRepository.observeModule(module)
 
@@ -83,52 +113,52 @@ class AppViewModel @Inject constructor(
     fun recycleBin() = contentRepository.observeRecycleBin()
 
     fun notify(message: String) {
-        viewModelScope.launch { _messages.send(message) }
+        viewModelScope.launch { send(message) }
     }
 
     // ---------- 会话与账号 ----------
 
     fun register(accountId: String, nickname: String, recoveryCode: String) = viewModelScope.launch {
         if (!networkTracker.currentConnected()) {
-            _messages.send("网络不可用，请检查后重试")
+            send("网络不可用，请检查后重试")
             return@launch
         }
         try {
             when (val result = authRepository.register(accountId, nickname, recoveryCode)) {
-                is AuthResult.Failure -> _messages.send(result.message)
+                is AuthResult.Failure -> send(result.message)
                 is AuthResult.Success -> {
                     seedContent()
-                    _messages.send("注册成功，账号 ID：${result.accountId}")
+                    send("注册成功，账号 ID：${result.accountId}")
                 }
             }
         } catch (e: Exception) {
-            _messages.send("注册失败：${e.message ?: e.javaClass.simpleName}")
+            send("注册失败：${e.message ?: e.javaClass.simpleName}")
         }
     }
 
     fun login(accountId: String, recoveryCode: String) = viewModelScope.launch {
         if (!networkTracker.currentConnected()) {
-            _messages.send("网络不可用，请检查后重试")
+            send("网络不可用，请检查后重试")
             return@launch
         }
         try {
             when (val result = authRepository.login(accountId, recoveryCode)) {
-                is AuthResult.Failure -> _messages.send(result.message)
-                is AuthResult.Success -> _messages.send("欢迎回来，${result.nickname}")
+                is AuthResult.Failure -> send(result.message)
+                is AuthResult.Success -> send("欢迎回来，${result.nickname}")
             }
         } catch (e: Exception) {
-            _messages.send("登录失败：${e.message ?: e.javaClass.simpleName}")
+            send("登录失败：${e.message ?: e.javaClass.simpleName}")
         }
     }
 
     fun changeRecoveryCode(oldCode: String, newCode: String) = viewModelScope.launch {
         if (oldCode == newCode) {
-            _messages.send("新旧密码不能相同")
+            send("新旧密码不能相同")
             return@launch
         }
         when (val result = authRepository.changeRecoveryCode(oldCode, newCode)) {
-            is AuthResult.Failure -> _messages.send(result.message)
-            is AuthResult.Success -> _messages.send("密码已更新")
+            is AuthResult.Failure -> send(result.message)
+            is AuthResult.Success -> send("密码已更新")
         }
     }
 
@@ -137,7 +167,7 @@ class AppViewModel @Inject constructor(
             spaceRepository.freeze(it, System.currentTimeMillis())
         }
         authRepository.logout()
-        _messages.send("已退出登录")
+        send("已退出登录")
     }
 
     private suspend fun seedContent() {
@@ -158,7 +188,13 @@ class AppViewModel @Inject constructor(
 
     fun seedIfNeeded() = viewModelScope.launch {
         val snapshot = prefs.sessionSnapshot()
-        if (snapshot.loggedIn) seedContent()
+        if (snapshot.loggedIn) {
+            seedContent()
+            if (!prefs.taxonomyMigratedSnapshot()) {
+                contentRepository.migrateTaxonomyV2()
+                prefs.markTaxonomyMigrated()
+            }
+        }
     }
 
     // ---------- 内容 ----------
@@ -171,15 +207,15 @@ class AppViewModel @Inject constructor(
         visibility: Visibility,
         eventDate: Long?,
         rating: Int,
-        photoType: String,
+        mediaIds: List<String>? = null,
         extra: Map<String, String> = emptyMap()
     ) = viewModelScope.launch {
         if (isReadOnly.value) {
-            _messages.send(READ_ONLY_MESSAGE)
+            send(READ_ONLY_MESSAGE)
             return@launch
         }
         if (title.isBlank()) {
-            _messages.send("请填写标题")
+            send("请填写标题")
             return@launch
         }
         val snapshot = prefs.sessionSnapshot()
@@ -187,7 +223,6 @@ class AppViewModel @Inject constructor(
             putAll(existing?.extra ?: emptyMap())
             putAll(extra)
             if (rating > 0) put("星级", rating.toString())
-            if (photoType.isNotBlank()) put("category", photoType)
         }
         val record = ContentRecord(
             id = existing?.id ?: "rec-${UUID.randomUUID()}",
@@ -199,7 +234,7 @@ class AppViewModel @Inject constructor(
             title = title.trim(),
             content = content.trim(),
             eventDate = eventDate,
-            mediaIds = existing?.mediaIds ?: emptyList(),
+            mediaIds = mediaIds ?: existing?.mediaIds ?: emptyList(),
             extra = extraMap,
             createdAt = existing?.createdAt ?: System.currentTimeMillis(),
             updatedAt = System.currentTimeMillis(),
@@ -207,34 +242,62 @@ class AppViewModel @Inject constructor(
             version = (existing?.version ?: 0) + 1
         )
         contentRepository.save(record)
-        _messages.send(if (existing == null) "已保存" else "已更新")
+        if (existing == null) {
+            _messages.send(
+                UiMessage(
+                    text = receiptOf(record),
+                    actionLabel = "去看看",
+                    targetModule = record.module
+                )
+            )
+        } else {
+            send("已更新")
+        }
+    }
+
+    /** 保存回执：与分类常量同源，明确落到哪个页面。 */
+    private fun receiptOf(record: ContentRecord): String {
+        val page = record.module.group.label
+        val category = PhotoFeed.categoryOf(record)
+            ?.takeIf { record.module.group == ModuleGroup.GALLERY }
+        return "已记入 $page · ${category ?: record.module.label}"
+    }
+
+    /** 心愿卡片上直接流转状态，例如「标记实现」。 */
+    fun setWishStatus(record: ContentRecord, status: String) = viewModelScope.launch {
+        if (isReadOnly.value) {
+            send(READ_ONLY_MESSAGE)
+            return@launch
+        }
+        contentRepository.save(com.s520j.app.domain.heart.WishBoard.withStatus(record, status))
+        send("已标记为$status")
     }
 
     fun deleteRecord(id: String) = viewModelScope.launch {
         if (isReadOnly.value) {
-            _messages.send(READ_ONLY_MESSAGE)
+            send(READ_ONLY_MESSAGE)
             return@launch
         }
         contentRepository.softDelete(id)
-        _messages.send("已移入回收站，保留 30 天")
+        send("已移入回收站，保留 30 天")
     }
 
     fun restoreRecord(id: String) = viewModelScope.launch {
         if (isReadOnly.value) {
-            _messages.send(READ_ONLY_MESSAGE)
+            send(READ_ONLY_MESSAGE)
             return@launch
         }
         contentRepository.restore(id)
-        _messages.send("已恢复")
+        send("已恢复")
     }
 
     fun purgeRecord(id: String) = viewModelScope.launch {
         if (isReadOnly.value) {
-            _messages.send(READ_ONLY_MESSAGE)
+            send(READ_ONLY_MESSAGE)
             return@launch
         }
         contentRepository.purge(id)
-        _messages.send("已彻底删除")
+        send("已彻底删除")
     }
 
     // ---------- 共同空间 ----------
@@ -243,21 +306,21 @@ class AppViewModel @Inject constructor(
         val snapshot = prefs.sessionSnapshot()
         spaceRepository.createSpace(name, intro, snapshot)
         _bindFailure.value = null
-        _messages.send("共同空间已创建")
+        send("共同空间已创建")
     }
 
     fun shareInvite() = viewModelScope.launch {
         val current = space.value ?: return@launch
         spaceRepository.shareInvite(current, System.currentTimeMillis())
         _bindFailure.value = null
-        _messages.send("已分享给对方，开始等待对方加入")
+        send("已分享给对方，开始等待对方加入")
     }
 
     fun refreshBindCode() = viewModelScope.launch {
         val current = space.value ?: return@launch
         spaceRepository.refreshBindCode(current, System.currentTimeMillis())
         _bindFailure.value = null
-        _messages.send("绑定码已刷新，24 小时内有效")
+        send("绑定码已刷新，24 小时内有效")
     }
 
     // Mock 阶段：单机只有一份本地库，输入绑定码一律按“模拟对方提交”处理，
@@ -272,7 +335,7 @@ class AppViewModel @Inject constructor(
         )
         _bindFailure.value = result.error
         if (result.error == null) {
-            _messages.send("已提交绑定申请，请双方各确认一次")
+            send("已提交绑定申请，请双方各确认一次")
         }
     }
 
@@ -289,7 +352,7 @@ class AppViewModel @Inject constructor(
             partnerNickname = snapshot.partnerNickname.ifBlank { "TA" },
             now = System.currentTimeMillis()
         )
-        _messages.send(bindConfirmMessage(updated, simulated = false))
+        send(bindConfirmMessage(updated, simulated = false))
     }
 
     fun confirmBindAsPartner() = viewModelScope.launch {
@@ -301,7 +364,7 @@ class AppViewModel @Inject constructor(
             partnerNickname = snapshot.partnerNickname.ifBlank { "TA" },
             now = System.currentTimeMillis()
         )
-        _messages.send(bindConfirmMessage(updated, simulated = true))
+        send(bindConfirmMessage(updated, simulated = true))
     }
 
     fun requestUnbind() = viewModelScope.launch {
@@ -311,7 +374,7 @@ class AppViewModel @Inject constructor(
             requesterId = prefs.sessionSnapshot().userId,
             now = System.currentTimeMillis()
         )
-        _messages.send("已发起解绑，等待双方各确认一次")
+        send("已发起解绑，等待双方各确认一次")
     }
 
     fun confirmUnbindAsOwner() = viewModelScope.launch {
@@ -321,7 +384,7 @@ class AppViewModel @Inject constructor(
             actorId = prefs.sessionSnapshot().userId,
             now = System.currentTimeMillis()
         )
-        _messages.send(unbindConfirmMessage(updated, simulated = false))
+        send(unbindConfirmMessage(updated, simulated = false))
     }
 
     fun confirmUnbindAsPartner() = viewModelScope.launch {
@@ -331,14 +394,14 @@ class AppViewModel @Inject constructor(
             actorId = current.partnerUserId ?: SIM_PARTNER_ID,
             now = System.currentTimeMillis()
         )
-        _messages.send(unbindConfirmMessage(updated, simulated = true))
+        send(unbindConfirmMessage(updated, simulated = true))
     }
 
     fun rebind() = viewModelScope.launch {
         val current = space.value ?: return@launch
         spaceRepository.rebind(current, System.currentTimeMillis())
         _bindFailure.value = null
-        _messages.send("空间已解冻，历史内容保留")
+        send("空间已解冻，历史内容保留")
     }
 
     /** 导出 JSON：合并正常内容与回收站内容，按 id 去重后回调到主线程。 */
@@ -378,6 +441,58 @@ class AppViewModel @Inject constructor(
     fun setFontScale(value: Float) = viewModelScope.launch { prefs.setFontScale(value) }
 
     fun setGreeting(value: String) = viewModelScope.launch { prefs.setGreeting(value) }
+
+    // ---------- 心动页：今日挑战与碰碰你 ----------
+
+    fun rotateChallenge() = updateChallenge { it.rotate() }
+
+    fun toggleChallengeSelf() = updateChallenge { it.toggleSelf() }
+
+    fun toggleChallengePartner() = updateChallenge { it.togglePartner() }
+
+    private fun updateChallenge(transform: (ChallengeState) -> ChallengeState) = viewModelScope.launch {
+        if (isReadOnly.value) {
+            send(READ_ONLY_MESSAGE)
+            return@launch
+        }
+        val epochDay = today().toEpochDay()
+        val current = ChallengeState.forDay(ChallengeState.decode(prefs.challengeSnapshot()), epochDay)
+        prefs.setChallengeState(transform(current).encode())
+    }
+
+    fun addCustomPoke(name: String) = viewModelScope.launch {
+        val existing = prefs.customPokesSnapshot()
+        when (PokeCatalog.validate(existing, name)) {
+            PokeAddResult.EMPTY -> send("请填写动作名称")
+            PokeAddResult.TOO_LONG -> send("动作名称最多 ${PokeCatalog.MAX_NAME_LENGTH} 个字")
+            PokeAddResult.DUPLICATE -> send("这个动作已经有了")
+            PokeAddResult.OK -> {
+                prefs.setCustomPokes(PokeCatalog.add(existing, name))
+                send("已添加「${name.trim()}」")
+            }
+        }
+    }
+
+    fun removeCustomPoke(name: String) = viewModelScope.launch {
+        prefs.setCustomPokes(PokeCatalog.remove(prefs.customPokesSnapshot(), name))
+        send("已删除「$name」")
+    }
+
+    /** 发送碰碰你：写入一条未读互动通知，供通知中心查看。 */
+    fun sendPoke(name: String) = viewModelScope.launch {
+        val snapshot = prefs.sessionSnapshot()
+        val partner = snapshot.partnerNickname.ifBlank { "TA" }
+        notificationDao.upsert(
+            NotificationEntity(
+                id = "poke-${UUID.randomUUID()}",
+                title = "碰碰你",
+                body = "你送给 $partner 一个「$name」",
+                createdAt = System.currentTimeMillis(),
+                read = false
+            )
+        )
+        send("已发送「$name」")
+    }
 
     fun markAllRead() = viewModelScope.launch { notificationDao.markAllRead() }
 

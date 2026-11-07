@@ -7,11 +7,14 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -27,6 +30,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import android.net.Uri
 import com.s520j.app.data.model.ContentModule
 import com.s520j.app.ui.AppViewModel
 import com.s520j.app.ui.screens.gallery.GalleryScreen
@@ -51,7 +55,7 @@ import kotlinx.coroutines.flow.collect
 
 private const val RouteHeart = "heart"
 private const val RouteModule = "module/{module}"
-private const val RouteModuleEdit = "module/{module}/edit?recordId={recordId}"
+private const val RouteModuleEdit = "module/{module}/edit?recordId={recordId}&preset={preset}"
 
 @Composable
 fun MainShell(vm: AppViewModel) {
@@ -61,7 +65,18 @@ fun MainShell(vm: AppViewModel) {
     val isReadOnly by vm.isReadOnly.collectAsState()
 
     LaunchedEffect(Unit) {
-        vm.messages.collect { snackbarHostState.showSnackbar(it) }
+        vm.messages.collect { message ->
+            val result = snackbarHostState.showSnackbar(
+                message = message.text,
+                actionLabel = message.actionLabel,
+                withDismissAction = true
+            )
+            if (result == SnackbarResult.ActionPerformed) {
+                message.targetModule?.let { module ->
+                    navController.navigate("module/${module.name}")
+                }
+            }
+        }
     }
 
     val entry by navController.currentBackStackEntryAsState()
@@ -72,12 +87,25 @@ fun MainShell(vm: AppViewModel) {
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         snackbarHost = { SnackbarHost(snackbarHostState) },
         bottomBar = {
-            if (currentRoute in mainRoutes) {
-                S520JBottomBar(currentRoute = currentRoute) { route ->
-                    navController.navigate(route) {
-                        popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                        launchSingleTop = true
-                        restoreState = true
+            // 固定高度的底栏占位：主页面与子页面之间切换时内容区高度不变，避免整体位移。
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .navigationBarsPadding()
+            ) {
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(Dimens.BottomBarHeight + 1.dp)
+                ) {
+                    if (currentRoute in mainRoutes) {
+                        S520JBottomBar(currentRoute = currentRoute) { route ->
+                            navController.navigate(route) {
+                                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
+                        }
                     }
                 }
             }
@@ -102,26 +130,37 @@ fun MainShell(vm: AppViewModel) {
                         vm = vm,
                         onOpenModule = { module, preset ->
                             if (preset != null) {
-                                navController.navigate("module/${module.name}/edit")
+                                navController.navigate("module/${module.name}/edit?preset=${Uri.encode(preset)}")
                             } else {
                                 navController.navigate("module/${module.name}")
                             }
                         },
-                        onOpenNotifications = { navController.navigate("notifications") }
+                        onOpenEditor = { module ->
+                            navController.navigate("module/${module.name}/edit")
+                        },
+                        onOpenRecord = { module, id ->
+                            navController.navigate("module/${module.name}/edit?recordId=${Uri.encode(id)}")
+                        }
                     )
                 }
 
                 composable("gallery") {
                     GalleryScreen(
                         vm = vm,
-                        onOpenModule = { module -> navController.navigate("module/${module.name}") }
+                        onOpenModule = { module -> navController.navigate("module/${module.name}") },
+                        onOpenRecord = { module, id ->
+                            navController.navigate("module/${module.name}/edit?recordId=${Uri.encode(id)}")
+                        }
                     )
                 }
 
                 composable("tacit") {
                     TacitScreen(
                         vm = vm,
-                        onOpenModule = { module -> navController.navigate("module/${module.name}") }
+                        onOpenModule = { module -> navController.navigate("module/${module.name}") },
+                        onOpenRecord = { module, id ->
+                            navController.navigate("module/${module.name}/edit?recordId=${Uri.encode(id)}")
+                        }
                     )
                 }
 
@@ -151,7 +190,9 @@ fun MainShell(vm: AppViewModel) {
                         vm = vm,
                         module = module,
                         onBack = { navController.popBackStack() },
-                        onEdit = { id -> navController.navigate("module/${module.name}/edit?recordId=${id ?: ""}") }
+                        onEdit = { id ->
+                            navController.navigate("module/${module.name}/edit?recordId=${Uri.encode(id ?: "")}")
+                        }
                     )
                 }
 
@@ -162,6 +203,10 @@ fun MainShell(vm: AppViewModel) {
                         navArgument("recordId") {
                             type = NavType.StringType
                             defaultValue = ""
+                        },
+                        navArgument("preset") {
+                            type = NavType.StringType
+                            defaultValue = ""
                         }
                     )
                 ) { backStackEntry ->
@@ -169,10 +214,14 @@ fun MainShell(vm: AppViewModel) {
                     val recordId = backStackEntry.arguments
                         ?.getString("recordId")
                         ?.takeIf { it.isNotBlank() }
+                    val preset = backStackEntry.arguments
+                        ?.getString("preset")
+                        ?.takeIf { it.isNotBlank() }
                     ModuleEditScreen(
                         vm = vm,
                         module = module,
                         recordId = recordId,
+                        preset = preset,
                         onBack = { navController.popBackStack() }
                     )
                 }
