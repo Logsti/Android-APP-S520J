@@ -47,4 +47,13 @@ object PhotoFeed {
 
     fun filter(feed: List<ContentRecord>, category: String): List<ContentRecord> =
         if (category == ALL) feed else feed.filter { categoryOf(it) == category }
+
+    /** 照片墙搜索：空关键词原样返回；命中标题或内容，忽略大小写。 */
+    fun search(records: List<ContentRecord>, query: String): List<ContentRecord> {
+        val keyword = query.trim()
+        if (keyword.isEmpty()) return records
+        return records.filter {
+            it.title.contains(keyword, ignoreCase = true) || it.content.contains(keyword, ignoreCase = true)
+        }
+    }
 }

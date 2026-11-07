@@ -1,8 +1,8 @@
-﻿tag=v6.1.1-round6c
+﻿tag=v6.2.0-stage5
 variant=debug
-versionCode=6101
-builtAt=2026-11-07 16:54:37
-apk=S520J-v6.1.1-round6c-debug.apk
-sizeBytes=21582378
+versionCode=6200
+builtAt=2026-11-07 21:54:28
+apk=S520J-v6.2.0-stage5-debug.apk
+sizeBytes=21598758
 jdk=C:\Program Files\Eclipse Adoptium\jdk-17.0.21.9-hotspot\
 androidSdk=C:\Android\Sdk

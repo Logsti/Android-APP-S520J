@@ -150,6 +150,9 @@ fun MainShell(vm: AppViewModel) {
                         onOpenModule = { module -> navController.navigate("module/${module.name}") },
                         onOpenRecord = { module, id ->
                             navController.navigate("module/${module.name}/edit?recordId=${Uri.encode(id)}")
+                        },
+                        onCreateRecord = { module ->
+                            navController.navigate("module/${module.name}/edit")
                         }
                     )
                 }

@@ -67,11 +67,50 @@ class PhotoFeedTest {
         assertTrue(PhotoFeed.filter(feed, "探店").isEmpty())
     }
 
+    @Test
+    fun `空关键词返回原列表`() {
+        val feed = listOf(record(ContentModule.PHOTO, "窗台"))
+        assertEquals(feed, PhotoFeed.search(feed, ""))
+        assertEquals(feed, PhotoFeed.search(feed, "   "))
+    }
+
+    @Test
+    fun `按标题搜索且忽略大小写`() {
+        val feed = listOf(
+            record(ContentModule.PHOTO, "Sunset"),
+            record(ContentModule.PHOTO, "窗台")
+        )
+        assertEquals(listOf("Sunset"), PhotoFeed.search(feed, "sun").map { it.title })
+        assertEquals(listOf("窗台"), PhotoFeed.search(feed, "窗台").map { it.title })
+    }
+
+    @Test
+    fun `按内容搜索`() {
+        val feed = listOf(
+            record(ContentModule.PHOTO, "窗台", content = "新买的小盆栽"),
+            record(ContentModule.PHOTO, "蛋糕", content = "生日那天")
+        )
+        assertEquals(listOf("窗台"), PhotoFeed.search(feed, "盆栽").map { it.title })
+    }
+
+    @Test
+    fun `搜索与分类叠加`() {
+        val feed = PhotoFeed.feed(
+            listOf(
+                record(ContentModule.DISH, "番茄牛腩", 2L, listOf("u"), "炖了很久"),
+                record(ContentModule.TRAVEL, "番茄味的旅行", 1L, listOf("u"))
+            )
+        )
+        val cooking = PhotoFeed.filter(feed, "做饭")
+        assertEquals(listOf("番茄牛腩"), PhotoFeed.search(cooking, "番茄").map { it.title })
+    }
+
     private fun record(
         module: ContentModule,
         title: String = module.name,
         createdAt: Long = 0L,
-        mediaIds: List<String> = emptyList()
+        mediaIds: List<String> = emptyList(),
+        content: String = ""
     ): ContentRecord = ContentRecord(
         id = "test-$title",
         module = module,
@@ -80,7 +119,7 @@ class PhotoFeedTest {
         ownerName = "小明",
         visibility = Visibility.COUPLE,
         title = title,
-        content = "",
+        content = content,
         eventDate = null,
         mediaIds = mediaIds,
         extra = emptyMap(),
