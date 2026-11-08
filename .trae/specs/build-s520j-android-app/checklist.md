@@ -38,6 +38,16 @@
 - [x] 已提交 7 条实机验收步骤，并暂停开发等待用户反馈
 - [x] 用户实机验证通过：已勾选 tasks.md SubTask 5.7，先 Git 提交再打 tag `v6.2.0-stage5`
 
+### 阶段 6（v6.3.0-stage6）执行记录
+
+- [x] SubTask 6.1–6.5 编码完成（八圆入口、八管理页 CRUD、相处之道双方确认、重要日子年度重复、承诺状态与兑现时间）
+- [x] 口径裁决：按 Taxonomy v2 删除「来自快速记录」区块，浪漫时刻置末位
+- [x] TDD 合规：RelationshipRule / ImportantDay / Promise 共 11 条用例先失败后通过
+- [x] `gradlew testDebugUnitTest --rerun-tasks` 全绿（112 条，0 失败）
+- [x] 全量回归 + 构建 `v6.3.0-stage6`（versionCode 6300，可覆盖 v6.2.0 升级）
+- [x] 已提交实机验收步骤，并暂停开发等待用户反馈
+- [x] 用户实机验证通过：已勾选 tasks.md SubTask 6.6，先 Git 提交再打 tag `v6.3.0-stage6`
+
 ## TDD 基线
 
 - [x] 测试依赖已配置（JUnit 4 + `kotlinx-coroutines-test`），`gradlew testDebugUnitTest` 可运行（中文路径下需经 ASCII 联接 `C:\s520j-build` 执行）

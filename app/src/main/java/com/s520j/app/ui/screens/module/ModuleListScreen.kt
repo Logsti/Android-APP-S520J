@@ -32,6 +32,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.s520j.app.data.model.ContentModule
 import com.s520j.app.data.model.ContentRecord
+import com.s520j.app.domain.tacit.ImportantDay
+import com.s520j.app.domain.tacit.Promise
+import com.s520j.app.domain.tacit.RelationshipRule
 import com.s520j.app.ui.AppViewModel
 import com.s520j.app.ui.components.BackBar
 import com.s520j.app.ui.components.EmptyState
@@ -111,9 +114,20 @@ fun ModuleListScreen(
                             }
                             Spacer(Modifier.height(8.dp))
                             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                TagPill((record.eventDate ?: record.createdAt).toDayTitle())
+                                if (module == ContentModule.IMPORTANT_DAY && ImportantDay.isRepeat(record)) {
+                                    TagPill("下次 ${ImportantDay.nextOccurrence(record).toDayTitle()}")
+                                    TagPill("每年重复")
+                                } else {
+                                    TagPill((record.eventDate ?: record.createdAt).toDayTitle())
+                                }
                                 record.extra["星级"]?.let { TagPill("${it} 星") }
                                 record.extra["状态"]?.let { TagPill(it) }
+                                if (module == ContentModule.RELATIONSHIP_RULE) {
+                                    TagPill(RelationshipRule.status(record))
+                                }
+                                if (module == ContentModule.PROMISE) {
+                                    Promise.fulfilledAt(record)?.let { TagPill("已兑现 ${it.toDayTitle()}") }
+                                }
                             }
                         }
                         Spacer(Modifier.width(8.dp))

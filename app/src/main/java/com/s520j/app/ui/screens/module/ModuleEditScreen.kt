@@ -46,6 +46,9 @@ import com.s520j.app.data.model.ContentModule
 import com.s520j.app.data.model.Visibility
 import com.s520j.app.domain.gallery.StarBoard
 import com.s520j.app.domain.heart.WishBoard
+import com.s520j.app.domain.tacit.ImportantDay
+import com.s520j.app.domain.tacit.Promise
+import com.s520j.app.domain.tacit.RelationshipRule
 import com.s520j.app.ui.AppViewModel
 import com.s520j.app.ui.components.BackBar
 import com.s520j.app.ui.components.PageContainer
@@ -90,6 +93,8 @@ fun ModuleEditScreen(
     var starBoard by remember { mutableStateOf(StarBoard.SONG) }
     var accepted by remember { mutableStateOf(false) }
     var wishStatus by remember { mutableStateOf(WishBoard.PENDING) }
+    var repeat by remember { mutableStateOf(false) }
+    var promiseStatus by remember { mutableStateOf(Promise.IN_PROGRESS) }
     val mediaUris = remember { mutableStateListOf<String>() }
     var loaded by remember { mutableStateOf(false) }
 
@@ -101,8 +106,10 @@ fun ModuleEditScreen(
             eventDate = existing.eventDate
             rating = existing.extra["星级"]?.toIntOrNull() ?: 0
             starBoard = StarBoard.boardOf(existing)
-            accepted = existing.extra["确认"] == "双方已确认"
+            accepted = existing.extra[RelationshipRule.KEY] == RelationshipRule.ACKNOWLEDGED
             wishStatus = WishBoard.statusOf(existing)
+            repeat = existing.extra[ImportantDay.REPEAT_KEY] == ImportantDay.REPEAT_YES
+            promiseStatus = Promise.status(existing)
             mediaUris.clear()
             mediaUris.addAll(existing.mediaIds)
             loaded = true
@@ -363,13 +370,58 @@ fun ModuleEditScreen(
                     Column(Modifier.weight(1f)) {
                         Text("双方认可", style = MaterialTheme.typography.titleMedium, color = S520JColors.TextPrimary)
                         Text(
-                            text = if (accepted) "双方已确认" else "等待对方确认",
+                            text = if (accepted) RelationshipRule.STATUS_ACK else RelationshipRule.STATUS_PENDING,
                             style = MaterialTheme.typography.labelSmall,
                             color = S520JColors.TextSecondary
                         )
                     }
                     TextButton(onClick = { accepted = !accepted }) {
                         Text(if (accepted) "撤销" else "确认", color = S520JColors.Primary)
+                    }
+                }
+            }
+        }
+
+        if (module == ContentModule.IMPORTANT_DAY) {
+            Spacer(Modifier.height(Dimens.CardGap))
+            SoftCard {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("年度重复", style = MaterialTheme.typography.titleMedium, color = S520JColors.TextPrimary)
+                        Text(
+                            text = if (repeat) "每年这天都会提醒" else "只记录这一次",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = S520JColors.TextSecondary
+                        )
+                    }
+                    TextButton(onClick = { repeat = !repeat }) {
+                        Text(if (repeat) "关闭" else "开启", color = S520JColors.Primary)
+                    }
+                }
+            }
+        }
+
+        if (module == ContentModule.PROMISE) {
+            Spacer(Modifier.height(Dimens.CardGap))
+            SoftCard {
+                Text("承诺状态", style = MaterialTheme.typography.titleMedium, color = S520JColors.TextPrimary)
+                Spacer(Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Promise.statuses.forEach { status ->
+                        val selected = promiseStatus == status
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(999.dp))
+                                .background(if (selected) S520JColors.PrimarySoft else S520JColors.Background)
+                                .clickable { promiseStatus = status }
+                                .padding(horizontal = 12.dp, vertical = 8.dp)
+                        ) {
+                            Text(
+                                text = status,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = if (selected) S520JColors.Primary else S520JColors.TextSecondary
+                            )
+                        }
                     }
                 }
             }
@@ -390,7 +442,7 @@ fun ModuleEditScreen(
                     mediaIds = mediaUris.toList(),
                     extra = buildMap {
                         if (module == ContentModule.RELATIONSHIP_RULE) {
-                            put("确认", if (accepted) "双方已确认" else "等待对方确认")
+                            put(RelationshipRule.KEY, if (accepted) RelationshipRule.ACKNOWLEDGED else RelationshipRule.PENDING)
                         }
                         if (module == ContentModule.WISH) {
                             put("状态", wishStatus)
@@ -398,6 +450,17 @@ fun ModuleEditScreen(
                         }
                         if (module == ContentModule.DISH) {
                             put(StarBoard.KEY, starBoard)
+                        }
+                        if (module == ContentModule.IMPORTANT_DAY) {
+                            put(ImportantDay.REPEAT_KEY, if (repeat) ImportantDay.REPEAT_YES else "否")
+                        }
+                        if (module == ContentModule.PROMISE) {
+                            put(Promise.STATUS_KEY, promiseStatus)
+                            if (promiseStatus == Promise.FULFILLED) {
+                                val fulfilledAt = existing?.extra?.get(Promise.FULFILLED_AT_KEY)
+                                    ?: System.currentTimeMillis().toString()
+                                put(Promise.FULFILLED_AT_KEY, fulfilledAt)
+                            }
                         }
                     }
                 )

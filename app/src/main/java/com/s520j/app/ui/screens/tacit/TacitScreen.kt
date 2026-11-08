@@ -43,6 +43,9 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import com.s520j.app.data.model.ContentModule
 import com.s520j.app.data.model.ContentRecord
+import com.s520j.app.domain.tacit.ImportantDay
+import com.s520j.app.domain.tacit.Promise
+import com.s520j.app.domain.tacit.RelationshipRule
 import com.s520j.app.ui.AppViewModel
 import com.s520j.app.ui.components.EmptyState
 import com.s520j.app.ui.components.PageContainer
@@ -52,6 +55,7 @@ import com.s520j.app.ui.components.TagPill
 import com.s520j.app.ui.components.VisibilityChip
 import com.s520j.app.ui.theme.Dimens
 import com.s520j.app.ui.theme.S520JColors
+import com.s520j.app.ui.util.toDayTitle
 import com.s520j.app.ui.util.toShortDate
 
 private data class TacitEntry(val module: ContentModule, val icon: ImageVector, val short: String)
@@ -144,7 +148,7 @@ fun TacitScreen(
             }
         } else {
             previews.take(3).forEach { record ->
-                TacitPreviewCard(record) { onOpenModule(entry.module) }
+                TacitPreviewCard(record, entry.module) { onOpenModule(entry.module) }
                 Spacer(Modifier.height(Dimens.CardGap))
             }
         }
@@ -163,7 +167,7 @@ fun TacitScreen(
 }
 
 @Composable
-private fun TacitPreviewCard(record: ContentRecord, onClick: () -> Unit) {
+private fun TacitPreviewCard(record: ContentRecord, module: ContentModule, onClick: () -> Unit) {
     SoftCard(onClick = onClick) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
@@ -179,9 +183,18 @@ private fun TacitPreviewCard(record: ContentRecord, onClick: () -> Unit) {
                 }
                 Spacer(Modifier.height(6.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    TagPill((record.eventDate ?: record.createdAt).toShortDate())
+                    if (module == ContentModule.IMPORTANT_DAY && ImportantDay.isRepeat(record)) {
+                        TagPill("下次 ${ImportantDay.nextOccurrence(record).toDayTitle()}")
+                    } else {
+                        TagPill((record.eventDate ?: record.createdAt).toShortDate())
+                    }
                     record.extra["状态"]?.let { TagPill(it) }
-                    record.extra["确认"]?.let { TagPill(it) }
+                    if (module == ContentModule.RELATIONSHIP_RULE) {
+                        TagPill(RelationshipRule.status(record))
+                    }
+                    if (module == ContentModule.PROMISE) {
+                        Promise.fulfilledAt(record)?.let { TagPill("已兑现") }
+                    }
                 }
             }
             Spacer(Modifier.width(8.dp))
