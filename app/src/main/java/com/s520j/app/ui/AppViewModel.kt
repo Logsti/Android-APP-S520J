@@ -22,6 +22,9 @@ import com.s520j.app.domain.heart.ChallengeState
 import com.s520j.app.domain.heart.PhotoFeed
 import com.s520j.app.domain.heart.PokeAddResult
 import com.s520j.app.domain.heart.PokeCatalog
+import com.s520j.app.domain.us.ReminderCounts
+import com.s520j.app.domain.us.ReminderDigest
+import com.s520j.app.domain.us.ReminderSetting
 import com.s520j.app.ui.util.today
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.util.UUID
@@ -31,6 +34,7 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
@@ -61,6 +65,29 @@ class AppViewModel @Inject constructor(
 
     val fontScale: StateFlow<Float> = prefs.fontScale
         .stateIn(viewModelScope, SharingStarted.Eagerly, 1.0f)
+
+    /** 本机提醒偏好：时间 + 三类开关（V1 仅本机一份）。 */
+    val reminder: StateFlow<ReminderSetting> = prefs.reminderSetting
+        .stateIn(viewModelScope, SharingStarted.Eagerly, ReminderSetting())
+
+    /** 新内容默认可见范围，默认仅自己可见。 */
+    val defaultVisibility: StateFlow<Visibility> = prefs.defaultVisibility
+        .stateIn(viewModelScope, SharingStarted.Eagerly, Visibility.PRIVATE)
+
+    /** 双方头像图片 URI（为空时显示昵称首字）。 */
+    val myAvatar: StateFlow<String?> = prefs.myAvatar
+        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
+    val partnerAvatar: StateFlow<String?> = prefs.partnerAvatar
+        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
+    /** 进入 APP 时按当天日期与本机提醒开关汇总待提醒项。 */
+    val todayReminders: StateFlow<ReminderCounts> = combine(
+        contentRepository.observeAll(),
+        prefs.reminderSetting
+    ) { records, setting ->
+        ReminderDigest.counts(records, setting, today().toEpochDay())
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, ReminderCounts())
 
     val greeting: StateFlow<String> = prefs.greeting
         .stateIn(viewModelScope, SharingStarted.Eagerly, "今天也要好好吃饭，好好想你。")
@@ -441,6 +468,23 @@ class AppViewModel @Inject constructor(
     fun setFontScale(value: Float) = viewModelScope.launch { prefs.setFontScale(value) }
 
     fun setGreeting(value: String) = viewModelScope.launch { prefs.setGreeting(value) }
+
+    /** 更新本机提醒偏好。 */
+    fun setReminder(setting: ReminderSetting) = viewModelScope.launch {
+        prefs.setReminderSetting(setting)
+    }
+
+    fun setDefaultVisibility(value: Visibility) = viewModelScope.launch {
+        prefs.setDefaultVisibility(value)
+    }
+
+    fun setMyAvatar(uri: String?) = viewModelScope.launch {
+        prefs.setMyAvatar(uri)
+    }
+
+    fun setPartnerAvatar(uri: String?) = viewModelScope.launch {
+        prefs.setPartnerAvatar(uri)
+    }
 
     // ---------- 心动页：今日挑战与碰碰你 ----------
 

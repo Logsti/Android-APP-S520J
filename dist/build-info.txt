@@ -1,8 +1,8 @@
-﻿tag=v6.3.0-stage6
+﻿tag=v6.4.0-stage7
 variant=debug
-versionCode=6300
-builtAt=2026-11-07 23:52:27
-apk=S520J-v6.3.0-stage6-debug.apk
-sizeBytes=21598762
+versionCode=6400
+builtAt=2026-11-08 15:11:34
+apk=S520J-v6.4.0-stage7-debug.apk
+sizeBytes=21780447
 jdk=C:\Program Files\Eclipse Adoptium\jdk-17.0.21.9-hotspot\
 androidSdk=C:\Android\Sdk

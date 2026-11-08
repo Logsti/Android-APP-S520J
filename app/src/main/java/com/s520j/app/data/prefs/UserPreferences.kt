@@ -8,7 +8,10 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import com.s520j.app.data.CoupleStartDate
+import com.s520j.app.data.model.Visibility
 import com.s520j.app.domain.heart.PokeCatalog
+import com.s520j.app.domain.us.ReminderSetting
+import com.s520j.app.domain.us.ReminderSettingCodec
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -45,6 +48,10 @@ class UserPreferences @Inject constructor(
         val CHALLENGE_STATE = stringPreferencesKey("challenge_state")
         val CUSTOM_POKES = stringPreferencesKey("custom_pokes")
         val TAXONOMY_V2_MIGRATED = booleanPreferencesKey("taxonomy_v2_migrated")
+        val REMINDER_SETTING = stringPreferencesKey("reminder_setting")
+        val DEFAULT_VISIBILITY = stringPreferencesKey("default_visibility")
+        val MY_AVATAR_URI = stringPreferencesKey("my_avatar_uri")
+        val PARTNER_AVATAR_URI = stringPreferencesKey("partner_avatar_uri")
     }
 
     val session: Flow<SessionProfile> = context.dataStore.data.map { p ->
@@ -71,6 +78,22 @@ class UserPreferences @Inject constructor(
     val customPokes: Flow<List<String>> = context.dataStore.data.map {
         PokeCatalog.decode(it[Keys.CUSTOM_POKES])
     }
+
+    /** 本机提醒偏好（时间 + 三类开关）。 */
+    val reminderSetting: Flow<ReminderSetting> = context.dataStore.data.map {
+        ReminderSettingCodec.decode(it[Keys.REMINDER_SETTING])
+    }
+
+    /** 默认可见范围：未设置时按仅自己可见。 */
+    val defaultVisibility: Flow<Visibility> = context.dataStore.data.map {
+        Visibility.from(it[Keys.DEFAULT_VISIBILITY])
+    }
+
+    /** 我的头像图片 URI，未设置时为空。 */
+    val myAvatar: Flow<String?> = context.dataStore.data.map { it[Keys.MY_AVATAR_URI] }
+
+    /** 对方头像图片 URI，未设置时为空。 */
+    val partnerAvatar: Flow<String?> = context.dataStore.data.map { it[Keys.PARTNER_AVATAR_URI] }
 
     suspend fun saveSession(profile: SessionProfile) {
         context.dataStore.edit { p ->
@@ -103,6 +126,26 @@ class UserPreferences @Inject constructor(
         context.dataStore.edit { it[Keys.CUSTOM_POKES] = PokeCatalog.encode(value) }
     }
 
+    suspend fun setReminderSetting(value: ReminderSetting) {
+        context.dataStore.edit { it[Keys.REMINDER_SETTING] = ReminderSettingCodec.encode(value) }
+    }
+
+    suspend fun setDefaultVisibility(value: Visibility) {
+        context.dataStore.edit { it[Keys.DEFAULT_VISIBILITY] = value.name }
+    }
+
+    suspend fun setMyAvatar(uri: String?) {
+        context.dataStore.edit { prefs ->
+            if (uri.isNullOrBlank()) prefs.remove(Keys.MY_AVATAR_URI) else prefs[Keys.MY_AVATAR_URI] = uri
+        }
+    }
+
+    suspend fun setPartnerAvatar(uri: String?) {
+        context.dataStore.edit { prefs ->
+            if (uri.isNullOrBlank()) prefs.remove(Keys.PARTNER_AVATAR_URI) else prefs[Keys.PARTNER_AVATAR_URI] = uri
+        }
+    }
+
     /** 记录类分类体系 v2 迁移是否已执行（幂等守卫）。 */
     suspend fun taxonomyMigratedSnapshot(): Boolean =
         context.dataStore.data.map { it[Keys.TAXONOMY_V2_MIGRATED] ?: false }.first()
@@ -116,4 +159,6 @@ class UserPreferences @Inject constructor(
     suspend fun challengeSnapshot(): String? = challengeState.first()
 
     suspend fun customPokesSnapshot(): List<String> = customPokes.first()
+
+    suspend fun reminderSettingSnapshot(): ReminderSetting = reminderSetting.first()
 }

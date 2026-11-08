@@ -1,5 +1,9 @@
 package com.s520j.app.ui.screens.us
 
+import android.content.Intent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -10,7 +14,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -18,8 +21,14 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.PhotoCamera
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Notifications
+import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -30,16 +39,20 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
 import com.s520j.app.data.local.BindState
 import com.s520j.app.ui.AppViewModel
-import com.s520j.app.ui.components.DetailRow
 import com.s520j.app.ui.components.PageContainer
-import com.s520j.app.ui.components.SectionHeader
 import com.s520j.app.ui.components.SoftCard
-import com.s520j.app.ui.components.TagPill
 import com.s520j.app.ui.theme.Dimens
 import com.s520j.app.ui.theme.S520JColors
 
@@ -61,8 +74,37 @@ fun UsScreen(
     val session by vm.session.collectAsState()
     val space by vm.space.collectAsState()
     val unread by vm.unreadCount.collectAsState()
+    val defaultVisibility by vm.defaultVisibility.collectAsState()
+    val reminder by vm.reminder.collectAsState()
+    val myAvatar by vm.myAvatar.collectAsState()
+    val partnerAvatar by vm.partnerAvatar.collectAsState()
 
     val bindState = space?.bindState?.let { raw -> BindState.entries.firstOrNull { it.name == raw } } ?: BindState.UNBOUND
+    val spaceName = space?.name?.trim()?.takeIf { it.isNotBlank() }
+
+    val versionName = LocalContext.current.packageManager
+        .getPackageInfo(LocalContext.current.packageName, 0)
+        .versionName ?: "未知"
+
+    val context = LocalContext.current
+    val myPicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        uri ?: return@rememberLauncherForActivityResult
+        runCatching {
+            context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        vm.setMyAvatar(uri.toString())
+    }
+    val partnerPicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        uri ?: return@rememberLauncherForActivityResult
+        runCatching {
+            context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        vm.setPartnerAvatar(uri.toString())
+    }
 
     PageContainer {
         Spacer(Modifier.height(28.dp))
@@ -75,7 +117,7 @@ fun UsScreen(
                 )
                 Spacer(Modifier.height(6.dp))
                 Text(
-                    text = "两个人，两段独立的人生，一个共同的空间。",
+                    text = "愿每一个平凡的日子，都有彼此相伴的温柔。",
                     style = MaterialTheme.typography.bodyMedium,
                     color = S520JColors.TextSecondary
                 )
@@ -85,75 +127,130 @@ fun UsScreen(
 
         Spacer(Modifier.height(16.dp))
 
-        SoftCard(containerColor = S520JColors.Sand) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Avatar(session.nickname.take(1).ifBlank { "你" })
-                Spacer(Modifier.width(8.dp))
-                Icon(
-                    Icons.Filled.Favorite,
-                    contentDescription = null,
-                    tint = S520JColors.Primary,
-                    modifier = Modifier.size(16.dp)
-                )
-                Spacer(Modifier.width(8.dp))
-                Avatar(session.partnerNickname.take(1).ifBlank { "TA" })
-                Spacer(Modifier.width(14.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        text = "${session.nickname} & ${session.partnerNickname}",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = S520JColors.TextPrimary
+        // 情侣资料卡：渐变背景 + 两头像中间夹心 + 昵称各自在头像正下方
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(MaterialTheme.shapes.large)
+                .background(
+                    Brush.linearGradient(
+                        listOf(S520JColors.PrimarySoft, S520JColors.Sand)
                     )
-                    Spacer(Modifier.height(4.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        TagPill(bindState.label)
-                        TagPill("独立账号")
-                    }
+                )
+                .padding(vertical = 24.dp, horizontal = 16.dp)
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    ProfileColumn(
+                        letter = session.nickname.take(1).ifBlank { "你" },
+                        uri = myAvatar,
+                        nickname = session.nickname.ifBlank { "你" },
+                        onClick = {
+                            myPicker.launch(
+                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                            )
+                        }
+                    )
+                    Icon(
+                        Icons.Filled.Favorite,
+                        contentDescription = null,
+                        tint = Color.White.copy(alpha = 0.95f),
+                        modifier = Modifier.size(22.dp)
+                    )
+                    ProfileColumn(
+                        letter = session.partnerNickname.take(1).ifBlank { "TA" },
+                        uri = partnerAvatar,
+                        nickname = session.partnerNickname.ifBlank { "TA" },
+                        onClick = {
+                            partnerPicker.launch(
+                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                            )
+                        }
+                    )
                 }
+                Spacer(Modifier.height(14.dp))
+                Text(
+                    text = when {
+                        !spaceName.isNullOrBlank() && (bindState == BindState.BOUND || bindState == BindState.FROZEN) ->
+                            "共同空间 · $spaceName"
+                        bindState == BindState.BOUND || bindState == BindState.FROZEN -> "共同空间"
+                        else -> "未绑定共同空间"
+                    },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = S520JColors.TextSecondary
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = "点击头像可上传照片",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = S520JColors.TextSecondary.copy(alpha = 0.8f)
+                )
             }
-            Spacer(Modifier.height(12.dp))
-            DetailRow("我的账号 ID", session.accountId.ifBlank { "未登录" })
-            DetailRow("共同空间", space?.name ?: "尚未创建")
         }
 
         Spacer(Modifier.height(Dimens.SectionGap))
-
-        SectionHeader(title = "设置", subtitle = "空间、隐私与数据")
-        Spacer(Modifier.height(10.dp))
 
         SoftCard {
-            SettingRow("共同空间", "绑定、解绑与冻结归档", onOpenSpace)
+            SettingRow(
+                icon = Icons.Filled.Home,
+                title = "共同空间",
+                subtitle = space?.name?.ifBlank { null } ?: "未创建",
+                onClick = onOpenSpace
+            )
             SettingDivider()
-            SettingRow("账号与安全", "账号信息与密码管理", onOpenAccountSecurity)
+            SettingRow(
+                icon = Icons.Filled.Lock,
+                title = "账号与安全",
+                subtitle = null,
+                onClick = onOpenAccountSecurity
+            )
             SettingDivider()
-            SettingRow("隐私与权限", "仅自己可见 / 共同可见", onOpenPrivacy)
+            SettingRow(
+                icon = Icons.Outlined.Visibility,
+                title = "隐私与权限",
+                subtitle = "默认：${defaultVisibility.shortLabel}",
+                onClick = onOpenPrivacy
+            )
             SettingDivider()
-            SettingRow("数据管理", "回收站、清理缓存、导出与备份", onOpenDataManagement)
+            SettingRow(
+                icon = Icons.Filled.List,
+                title = "数据管理",
+                subtitle = "备份 · 导出",
+                onClick = onOpenDataManagement
+            )
             SettingDivider()
-            SettingRow("提醒设置", "双方各自设置提醒时间", onOpenReminderSettings)
+            SettingRow(
+                icon = Icons.Outlined.Notifications,
+                title = "提醒设置",
+                subtitle = if (reminder.enabledCount > 0) "${reminder.enabledCount} 项开启" else "未开启",
+                onClick = onOpenReminderSettings
+            )
             SettingDivider()
-            SettingRow("应用设置", "字体大小、主题与语言", onOpenAppSettings)
+            SettingRow(
+                icon = Icons.Filled.Settings,
+                title = "应用设置",
+                subtitle = null,
+                onClick = onOpenAppSettings
+            )
             SettingDivider()
-            SettingRow("个性化偏好", "首页问候语与个人偏好", onOpenPreferenceSettings)
-        }
-
-        Spacer(Modifier.height(Dimens.SectionGap))
-
-        SectionHeader(title = "关于 S520J")
-        Spacer(Modifier.height(10.dp))
-        SoftCard(onClick = onOpenAbout) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Outlined.Info, contentDescription = null, tint = S520JColors.Primary)
-                Spacer(Modifier.width(10.dp))
-                Column(Modifier.weight(1f)) {
-                    Text("关于 S520J", style = MaterialTheme.typography.titleMedium, color = S520JColors.TextPrimary)
-                    Text(
-                        "版本、更新日期、作者与帮助反馈",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = S520JColors.TextSecondary
-                    )
-                }
-            }
+            SettingRow(
+                icon = Icons.Filled.Favorite,
+                title = "个性化偏好",
+                subtitle = null,
+                onClick = onOpenPreferenceSettings
+            )
+            SettingDivider()
+            SettingRow(
+                icon = Icons.Outlined.Info,
+                title = "关于 S520J",
+                subtitle = null,
+                badge = versionName,
+                onClick = onOpenAbout
+            )
         }
 
         Spacer(Modifier.height(24.dp))
@@ -167,26 +264,32 @@ fun UsScreen(
 
 @Composable
 private fun NotificationBell(unread: Int, onClick: () -> Unit) {
+    // 外层不裁剪，保证右上角红点能完整露出
     Box(
         modifier = Modifier
             .size(44.dp)
-            .clip(CircleShape)
-            .background(S520JColors.Surface)
             .clickable { onClick() },
         contentAlignment = Alignment.Center
     ) {
-        Icon(
-            Icons.Outlined.Notifications,
-            contentDescription = "通知",
-            tint = S520JColors.TextPrimary,
-            modifier = Modifier.size(22.dp)
-        )
+        Box(
+            modifier = Modifier
+                .size(40.dp)
+                .clip(CircleShape)
+                .background(S520JColors.Surface),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                Icons.Outlined.Notifications,
+                contentDescription = "通知",
+                tint = S520JColors.TextPrimary,
+                modifier = Modifier.size(22.dp)
+            )
+        }
         if (unread > 0) {
             Box(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
-                    .offset(x = 2.dp, y = (-2).dp)
-                    .size(if (unread > 9) 18.dp else 18.dp)
+                    .size(18.dp)
                     .clip(CircleShape)
                     .background(Color(0xFFE55757)),
                 contentAlignment = Alignment.Center
@@ -202,36 +305,132 @@ private fun NotificationBell(unread: Int, onClick: () -> Unit) {
     }
 }
 
+/** 头像 + 正下方昵称，头像可点击上传照片。 */
 @Composable
-private fun Avatar(letter: String) {
-    Box(
-        modifier = Modifier
-            .size(44.dp)
-            .clip(CircleShape)
-            .background(S520JColors.Surface),
-        contentAlignment = Alignment.Center
+private fun ProfileColumn(
+    letter: String,
+    uri: String?,
+    nickname: String,
+    onClick: () -> Unit
+) {
+    Column(
+        modifier = Modifier.width(104.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
+        Box(
+            modifier = Modifier
+                .size(64.dp)
+                .clickable { onClick() },
+            contentAlignment = Alignment.Center
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(64.dp)
+                    .clip(CircleShape)
+                    .background(S520JColors.Surface),
+                contentAlignment = Alignment.Center
+            ) {
+                if (uri.isNullOrBlank()) {
+                    Text(
+                        text = letter,
+                        style = MaterialTheme.typography.headlineSmall,
+                        color = S520JColors.Primary,
+                        fontWeight = FontWeight.Bold
+                    )
+                } else {
+                    AsyncImage(
+                        model = uri,
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .clip(CircleShape)
+                    )
+                }
+            }
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .size(20.dp)
+                    .clip(CircleShape)
+                    .background(S520JColors.Primary),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    Icons.Filled.PhotoCamera,
+                    contentDescription = "上传头像",
+                    tint = Color.White,
+                    modifier = Modifier.size(12.dp)
+                )
+            }
+        }
+        Spacer(Modifier.height(8.dp))
         Text(
-            text = letter,
-            style = MaterialTheme.typography.titleLarge,
-            color = S520JColors.Primary,
-            fontWeight = FontWeight.Bold
+            text = nickname,
+            style = MaterialTheme.typography.titleMedium,
+            color = S520JColors.TextPrimary,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.Center
         )
     }
 }
 
 @Composable
-private fun SettingRow(title: String, subtitle: String, onClick: () -> Unit) {
+private fun SettingRow(
+    icon: ImageVector,
+    title: String,
+    subtitle: String?,
+    badge: String? = null,
+    onClick: () -> Unit
+) {
+    // 标题在左，附加信息右对齐紧贴箭头，与标题同一行居中。
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onClick() }
-            .padding(vertical = 12.dp),
+            .padding(vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Column(Modifier.weight(1f)) {
-            Text(title, style = MaterialTheme.typography.titleMedium, color = S520JColors.TextPrimary)
-            Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = S520JColors.TextSecondary)
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = S520JColors.Primary,
+            modifier = Modifier.size(22.dp)
+        )
+        Spacer(Modifier.width(12.dp))
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleMedium,
+            color = S520JColors.TextPrimary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f)
+        )
+        if (!badge.isNullOrBlank()) {
+            Box(
+                modifier = Modifier
+                    .clip(CircleShape)
+                    .background(S520JColors.Sand)
+                    .padding(horizontal = 10.dp, vertical = 4.dp)
+            ) {
+                Text(
+                    text = badge,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = S520JColors.TextSecondary
+                )
+            }
+            Spacer(Modifier.width(8.dp))
+        } else if (!subtitle.isNullOrBlank()) {
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodyMedium,
+                color = S520JColors.TextSecondary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Spacer(Modifier.width(4.dp))
         }
         Icon(
             Icons.Filled.ChevronRight,

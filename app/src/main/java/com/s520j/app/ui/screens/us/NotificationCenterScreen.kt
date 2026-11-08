@@ -34,6 +34,7 @@ import com.s520j.app.ui.util.toShortDate
 fun NotificationCenterScreen(vm: AppViewModel, onBack: () -> Unit) {
     val notifications by vm.notifications.collectAsState()
     val unread by vm.unreadCount.collectAsState()
+    val reminders by vm.todayReminders.collectAsState()
 
     PageContainer {
         BackBar(
@@ -57,6 +58,36 @@ fun NotificationCenterScreen(vm: AppViewModel, onBack: () -> Unit) {
             style = MaterialTheme.typography.bodyMedium,
             color = S520JColors.TextSecondary
         )
+        Spacer(Modifier.height(16.dp))
+
+        SoftCard(containerColor = S520JColors.Sand) {
+            Text(
+                text = "今日待提醒",
+                style = MaterialTheme.typography.titleMedium,
+                color = S520JColors.TextPrimary
+            )
+            Spacer(Modifier.height(4.dp))
+            if (reminders.total == 0) {
+                Text(
+                    text = "今天没有到期的提醒项。",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = S520JColors.TextSecondary
+                )
+            } else {
+                Text(
+                    text = "共 ${reminders.total} 项 · 重要日子 ${reminders.importantDay} · 日历事项 ${reminders.calendar} · 待兑现承诺 ${reminders.task}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = S520JColors.TextPrimary
+                )
+            }
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = "按「提醒设置」中我的开关与当天日期汇总。",
+                style = MaterialTheme.typography.labelSmall,
+                color = S520JColors.TextSecondary
+            )
+        }
+
         Spacer(Modifier.height(16.dp))
 
         if (notifications.isEmpty()) {

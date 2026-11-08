@@ -73,6 +73,7 @@ fun ModuleEditScreen(
     val flow = remember(module) { vm.contents(module) }
     val records by flow.collectAsState(initial = emptyList())
     val isReadOnly by vm.isReadOnly.collectAsState()
+    val preferredVisibility by vm.defaultVisibility.collectAsState()
     val existing = remember(recordId, records) { records.firstOrNull { it.id == recordId } }
 
     // 日历入口带入的日期。
@@ -88,6 +89,7 @@ fun ModuleEditScreen(
     var title by remember { mutableStateOf("") }
     var content by remember { mutableStateOf("") }
     var visibility by remember { mutableStateOf(module.defaultVisibility) }
+    var visibilityTouched by remember { mutableStateOf(false) }
     var eventDate by remember { mutableStateOf(presetDate?.epochMillis()) }
     var rating by remember { mutableStateOf(0) }
     var starBoard by remember { mutableStateOf(StarBoard.SONG) }
@@ -98,7 +100,7 @@ fun ModuleEditScreen(
     val mediaUris = remember { mutableStateListOf<String>() }
     var loaded by remember { mutableStateOf(false) }
 
-    LaunchedEffect(existing) {
+    LaunchedEffect(existing, preferredVisibility) {
         if (!loaded && existing != null) {
             title = existing.title
             content = existing.content
@@ -113,6 +115,9 @@ fun ModuleEditScreen(
             mediaUris.clear()
             mediaUris.addAll(existing.mediaIds)
             loaded = true
+        } else if (existing == null && !visibilityTouched) {
+            // 新记录沿用「隐私与权限」里的默认范围，默认仅自己可见。
+            visibility = preferredVisibility
         }
     }
 
@@ -213,7 +218,7 @@ fun ModuleEditScreen(
                         modifier = Modifier
                             .clip(RoundedCornerShape(999.dp))
                             .background(if (selected) S520JColors.Primary else S520JColors.Background)
-                            .clickable { visibility = option }
+                            .clickable { visibility = option; visibilityTouched = true }
                             .padding(horizontal = 14.dp, vertical = 8.dp)
                     ) {
                         Text(

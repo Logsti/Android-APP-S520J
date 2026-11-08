@@ -13,10 +13,8 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -32,8 +30,7 @@ import com.s520j.app.ui.theme.S520JColors
 
 @Composable
 fun PrivacyScreen(vm: AppViewModel, onBack: () -> Unit) {
-    var selected by rememberSaveable { mutableStateOf(Visibility.PRIVATE.name) }
-    val selectedVisibility = Visibility.from(selected)
+    val selectedVisibility by vm.defaultVisibility.collectAsState()
 
     PageContainer {
         BackBar(title = "隐私与权限", onBack = onBack)
@@ -55,14 +52,14 @@ fun PrivacyScreen(vm: AppViewModel, onBack: () -> Unit) {
 
         Spacer(Modifier.height(Dimens.SectionGap))
 
-        SectionHeader(title = "默认可见范围", subtitle = "当前阶段仅作展示")
+        SectionHeader(title = "默认可见范围", subtitle = "应用到之后新建的每一条内容")
         Spacer(Modifier.height(10.dp))
         SoftCard {
             Visibility.entries.forEach { visibility ->
                 VisibilityOption(
                     visibility = visibility,
-                    selected = selected == visibility.name,
-                    onSelect = { selected = visibility.name }
+                    selected = selectedVisibility == visibility,
+                    onSelect = { vm.setDefaultVisibility(visibility) }
                 )
             }
             Spacer(Modifier.height(8.dp))
@@ -71,7 +68,7 @@ fun PrivacyScreen(vm: AppViewModel, onBack: () -> Unit) {
             }
             Spacer(Modifier.height(8.dp))
             Text(
-                text = "新内容默认仅自己可见，可以在每条内容上单独改为共同可见；此处选择仅在本机记忆展示，不改动已有内容。",
+                text = "新内容默认使用此处设置的范围，保存时仍可在单条内容上切换；已有内容不受影响。",
                 style = MaterialTheme.typography.bodyMedium,
                 color = S520JColors.TextSecondary
             )

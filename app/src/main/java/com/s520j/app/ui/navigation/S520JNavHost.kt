@@ -238,7 +238,7 @@ fun MainShell(vm: AppViewModel) {
                 }
 
                 composable("settings/reminder") {
-                    ReminderSettingsScreen(onBack = { navController.popBackStack() })
+                    ReminderSettingsScreen(vm = vm, onBack = { navController.popBackStack() })
                 }
 
                 composable("settings/appearance") {
