@@ -105,6 +105,57 @@ class PhotoFeedTest {
         assertEquals(listOf("番茄牛腩"), PhotoFeed.search(cooking, "番茄").map { it.title })
     }
 
+    @Test
+    fun `共同照片展平保留单条记录的全部图片`() {
+        val images = (1..6).map { "u$it" }
+        val photos = PhotoFeed.sharedPhotos(
+            listOf(record(ContentModule.PHOTO, "六张照片", mediaIds = images))
+        )
+
+        assertEquals(images, photos.map { it.image })
+    }
+
+    @Test
+    fun `共同照片按记录时间倒序排列`() {
+        val photos = PhotoFeed.sharedPhotos(
+            listOf(
+                record(ContentModule.PHOTO, "较早", createdAt = 10L, mediaIds = listOf("old")),
+                record(ContentModule.TRAVEL, "较新", createdAt = 20L, mediaIds = listOf("new"))
+            )
+        )
+
+        assertEquals(listOf("new", "old"), photos.map { it.image })
+    }
+
+    @Test
+    fun `共同照片保持记录内图片顺序`() {
+        val photos = PhotoFeed.sharedPhotos(
+            listOf(
+                record(
+                    ContentModule.DISH,
+                    "晚餐",
+                    mediaIds = listOf("first", "second", "third", "fourth", "fifth")
+                )
+            )
+        )
+
+        assertEquals(listOf("first", "second", "third", "fourth", "fifth"), photos.map { it.image })
+    }
+
+    @Test
+    fun `共同照片使用记录ID和图片序号作为稳定key`() {
+        val photos = PhotoFeed.sharedPhotos(
+            listOf(record(ContentModule.PHOTO, "稳定key", mediaIds = listOf("same", "same")))
+        )
+
+        assertEquals(listOf("test-稳定key#0", "test-稳定key#1"), photos.map { it.key })
+    }
+
+    @Test
+    fun `共同照片空列表返回空列表`() {
+        assertTrue(PhotoFeed.sharedPhotos(emptyList()).isEmpty())
+    }
+
     private fun record(
         module: ContentModule,
         title: String = module.name,

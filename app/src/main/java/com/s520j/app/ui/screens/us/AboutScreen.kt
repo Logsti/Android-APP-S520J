@@ -69,6 +69,12 @@ fun AboutScreen(onBack: () -> Unit) {
                 style = MaterialTheme.typography.bodyMedium,
                 color = S520JColors.TextSecondary
             )
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = "致一周年的我们",
+                style = MaterialTheme.typography.bodyMedium,
+                color = S520JColors.TextSecondary
+            )
         }
 
         Spacer(Modifier.height(Dimens.SectionGap))

@@ -1,0 +1,18 @@
+{
+  "$schema": "https://static.cloudbase.net/cli/cloudbaserc.schema.json",
+  "envId": "<your-cloudbase-env-id>",
+  "functionRoot": "cloudbase/functions",
+  "functions": [
+    {
+      "name": "auth",
+      "timeout": 20,
+      "runtime": "Nodejs20.19",
+      "handler": "index.main",
+      "envVariables": {
+        "CB_ENV_ID": "<your-cloudbase-env-id>",
+        "CB_API_KEY": "<service-role-api-key>",
+        "CB_PG_ROLE": "cloudbase_postgres"
+      }
+    }
+  ]
+}

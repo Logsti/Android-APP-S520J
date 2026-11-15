@@ -34,6 +34,10 @@ interface ContentDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertAll(entities: List<ContentEntity>)
 
+    /** 仅清理本机内容（云端不受影响），用于备份后恢复演练。 */
+    @Query("DELETE FROM contents")
+    suspend fun clearAll()
+
     @Update
     suspend fun update(entity: ContentEntity)
 
@@ -45,6 +49,13 @@ interface ContentDao {
 
     @Query("SELECT COUNT(*) FROM contents")
     suspend fun count(): Int
+
+    /** 彻底清理回收站中超过保留期的内容（30 天）。 */
+    @Query("DELETE FROM contents WHERE deletedAt IS NOT NULL AND deletedAt <= :threshold")
+    suspend fun purgeDeletedBefore(threshold: Long): Int
+
+    @Query("SELECT COUNT(*) FROM contents WHERE deletedAt IS NOT NULL AND deletedAt <= :threshold")
+    suspend fun countPurgeable(threshold: Long): Int
 }
 
 @Dao
@@ -61,6 +72,38 @@ interface OutboxDao {
 
     @Query("DELETE FROM outbox WHERE seq = :seq")
     suspend fun remove(seq: Long)
+
+    /** 判断某条记录是否还有未推送操作，用于同步合并时保护本地修改。 */
+    @Query("SELECT COUNT(*) FROM outbox WHERE entityId = :entityId")
+    suspend fun countByEntity(entityId: String): Int
+
+    @Query("SELECT COUNT(*) FROM outbox")
+    suspend fun count(): Int
+}
+
+@Dao
+interface SyncConflictDao {
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(entity: SyncConflictEntity)
+
+    @Query("SELECT * FROM sync_conflicts ORDER BY createdAt DESC")
+    suspend fun list(): List<SyncConflictEntity>
+
+    @Query("SELECT * FROM sync_conflicts ORDER BY createdAt DESC")
+    fun observeAll(): Flow<List<SyncConflictEntity>>
+
+    @Query("SELECT * FROM sync_conflicts WHERE id = :id")
+    suspend fun findById(id: String): SyncConflictEntity?
+
+    @Query("DELETE FROM sync_conflicts WHERE id = :id")
+    suspend fun deleteById(id: String)
+
+    @Query("SELECT COUNT(*) FROM sync_conflicts")
+    fun observeCount(): Flow<Int>
+
+    @Query("DELETE FROM sync_conflicts WHERE expireAt < :now")
+    suspend fun purgeExpired(now: Long): Int
 }
 
 @Dao
@@ -121,6 +164,10 @@ interface NotificationDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(entity: NotificationEntity)
+
+    /** 已存在的事件完全保留本机记录（尤其已读状态）；返回 -1 表示重复。 */
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertIfAbsent(entity: NotificationEntity): Long
 
     @Query("UPDATE notifications SET read = 1 WHERE id = :id")
     suspend fun markRead(id: String)

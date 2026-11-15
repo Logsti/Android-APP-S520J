@@ -4,6 +4,7 @@ import android.content.Intent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -25,22 +26,28 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.PhotoCamera
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.outlined.Cloud
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.Visibility
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -50,6 +57,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.s520j.app.data.local.BindState
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import com.s520j.app.data.sync.SyncPhase
+import com.s520j.app.data.sync.SyncState
 import com.s520j.app.ui.AppViewModel
 import com.s520j.app.ui.components.PageContainer
 import com.s520j.app.ui.components.SoftCard
@@ -78,6 +89,13 @@ fun UsScreen(
     val reminder by vm.reminder.collectAsState()
     val myAvatar by vm.myAvatar.collectAsState()
     val partnerAvatar by vm.partnerAvatar.collectAsState()
+    val isAvatarUploading by vm.isAvatarUploading.collectAsState()
+    val syncState by vm.syncState.collectAsState()
+    val pendingSyncCount by vm.pendingSyncCount.collectAsState()
+    val syncing = syncState.phase == SyncPhase.SYNCING
+
+    // 进入页面时补一次同步（内部受 20 秒节流保护）。
+    LaunchedEffect(Unit) { vm.syncOnEnter() }
 
     val bindState = space?.bindState?.let { raw -> BindState.entries.firstOrNull { it.name == raw } } ?: BindState.UNBOUND
     val spaceName = space?.name?.trim()?.takeIf { it.isNotBlank() }
@@ -96,17 +114,11 @@ fun UsScreen(
         }
         vm.setMyAvatar(uri.toString())
     }
-    val partnerPicker = rememberLauncherForActivityResult(
-        ActivityResultContracts.PickVisualMedia()
-    ) { uri ->
-        uri ?: return@rememberLauncherForActivityResult
-        runCatching {
-            context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        }
-        vm.setPartnerAvatar(uri.toString())
-    }
 
-    PageContainer {
+    PageContainer(
+        onRefresh = vm::syncNow,
+        refreshing = syncState.phase == SyncPhase.SYNCING
+    ) {
         Spacer(Modifier.height(28.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
@@ -149,6 +161,7 @@ fun UsScreen(
                         letter = session.nickname.take(1).ifBlank { "你" },
                         uri = myAvatar,
                         nickname = session.nickname.ifBlank { "你" },
+                        enabled = !isAvatarUploading,
                         onClick = {
                             myPicker.launch(
                                 PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
@@ -165,11 +178,8 @@ fun UsScreen(
                         letter = session.partnerNickname.take(1).ifBlank { "TA" },
                         uri = partnerAvatar,
                         nickname = session.partnerNickname.ifBlank { "TA" },
-                        onClick = {
-                            partnerPicker.launch(
-                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                            )
-                        }
+                        editable = false,
+                        onClick = {}
                     )
                 }
                 Spacer(Modifier.height(14.dp))
@@ -185,7 +195,7 @@ fun UsScreen(
                 )
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    text = "点击头像可上传照片",
+                    text = "点击你的头像可上传照片",
                     style = MaterialTheme.typography.labelSmall,
                     color = S520JColors.TextSecondary.copy(alpha = 0.8f)
                 )
@@ -214,6 +224,38 @@ fun UsScreen(
                 title = "隐私与权限",
                 subtitle = "默认：${defaultVisibility.shortLabel}",
                 onClick = onOpenPrivacy
+            )
+            SettingDivider()
+            // 云同步：状态并入设置行，行尾为与其它行箭头等宽的 24dp 图标。
+            SettingRow(
+                icon = Icons.Outlined.Cloud,
+                title = "云同步",
+                subtitle = syncSubtitle(syncState, pendingSyncCount),
+                onClick = { if (!syncing) vm.syncNow() },
+                trailing = {
+                    Box(
+                        modifier = Modifier
+                            .size(24.dp)
+                            .clip(CircleShape)
+                            .clickable(enabled = !syncing) { vm.syncNow() },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (syncing) {
+                            CircularProgressIndicator(
+                                color = S520JColors.Primary,
+                                strokeWidth = 2.dp,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        } else {
+                            Icon(
+                                Icons.Filled.Refresh,
+                                contentDescription = "立即同步",
+                                tint = S520JColors.Primary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+                }
             )
             SettingDivider()
             SettingRow(
@@ -262,6 +304,24 @@ fun UsScreen(
     }
 }
 
+/** 云同步行副标题：同步中 → 进行态文案；否则「上次同步 X · 待上传 N 条」；无记录 → 尚未同步。 */
+private fun syncSubtitle(syncState: SyncState, pending: Int): String = when {
+    syncState.phase == SyncPhase.SYNCING -> "同步中…"
+    syncState.lastSyncAt <= 0L -> "尚未同步"
+    else -> "上次同步 ${relativeSyncTime(syncState.lastSyncAt)} · 待上传 $pending 条"
+}
+
+/** 相对时间：<1 分钟「刚刚」、<1 小时「X 分钟前」、其余「X 小时前」。 */
+private fun relativeSyncTime(lastSyncAt: Long): String {
+    if (lastSyncAt <= 0L) return "尚未同步"
+    val diff = System.currentTimeMillis() - lastSyncAt
+    return when {
+        diff < 60_000L -> "刚刚"
+        diff < 3_600_000L -> "${diff / 60_000L} 分钟前"
+        else -> "${diff / 3_600_000L} 小时前"
+    }
+}
+
 @Composable
 private fun NotificationBell(unread: Int, onClick: () -> Unit) {
     // 外层不裁剪，保证右上角红点能完整露出
@@ -305,12 +365,14 @@ private fun NotificationBell(unread: Int, onClick: () -> Unit) {
     }
 }
 
-/** 头像 + 正下方昵称，头像可点击上传照片。 */
+/** 头像 + 正下方昵称，editable=true 时可点击上传照片。 */
 @Composable
 private fun ProfileColumn(
     letter: String,
     uri: String?,
     nickname: String,
+    enabled: Boolean = true,
+    editable: Boolean = true,
     onClick: () -> Unit
 ) {
     Column(
@@ -320,7 +382,7 @@ private fun ProfileColumn(
         Box(
             modifier = Modifier
                 .size(64.dp)
-                .clickable { onClick() },
+                .then(if (editable && enabled) Modifier.clickable { onClick() } else Modifier),
             contentAlignment = Alignment.Center
         ) {
             Box(
@@ -330,38 +392,24 @@ private fun ProfileColumn(
                     .background(S520JColors.Surface),
                 contentAlignment = Alignment.Center
             ) {
-                if (uri.isNullOrBlank()) {
-                    Text(
-                        text = letter,
-                        style = MaterialTheme.typography.headlineSmall,
-                        color = S520JColors.Primary,
-                        fontWeight = FontWeight.Bold
-                    )
-                } else {
-                    AsyncImage(
-                        model = uri,
-                        contentDescription = null,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .clip(CircleShape)
+                AvatarImage(model = uri, letter = letter)
+            }
+            if (editable) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .size(20.dp)
+                        .clip(CircleShape)
+                        .background(if (enabled) S520JColors.Primary else S520JColors.TextSecondary),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Filled.PhotoCamera,
+                        contentDescription = "上传头像",
+                        tint = Color.White,
+                        modifier = Modifier.size(12.dp)
                     )
                 }
-            }
-            Box(
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .size(20.dp)
-                    .clip(CircleShape)
-                    .background(S520JColors.Primary),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    Icons.Filled.PhotoCamera,
-                    contentDescription = "上传头像",
-                    tint = Color.White,
-                    modifier = Modifier.size(12.dp)
-                )
             }
         }
         Spacer(Modifier.height(8.dp))
@@ -377,15 +425,73 @@ private fun ProfileColumn(
     }
 }
 
+/**
+ * 头像显示：云端同步过来的是 `data:image/jpeg;base64,...`，Coil 对 data URL 支持不稳定，
+ * 这里自行解码成 Bitmap；其余（本地 content:// / 文件路径）仍交给 Coil。
+ */
+@Composable
+private fun AvatarImage(model: String?, letter: String) {
+    if (model.isNullOrBlank()) {
+        AvatarLetter(letter)
+        return
+    }
+    if (model.startsWith("data:image")) {
+        val bitmap by produceState<android.graphics.Bitmap?>(initialValue = null, model) {
+            value = withContext(Dispatchers.Default) { decodeDataUrl(model) }
+        }
+        val bmp = bitmap
+        if (bmp == null) {
+            AvatarLetter(letter)
+        } else {
+            Image(
+                bitmap = bmp.asImageBitmap(),
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clip(CircleShape)
+            )
+        }
+    } else {
+        AsyncImage(
+            model = model,
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier
+                .fillMaxSize()
+                .clip(CircleShape)
+        )
+    }
+}
+
+@Composable
+private fun AvatarLetter(letter: String) {
+    Text(
+        text = letter,
+        style = MaterialTheme.typography.headlineSmall,
+        color = S520JColors.Primary,
+        fontWeight = FontWeight.Bold
+    )
+}
+
+private fun decodeDataUrl(dataUrl: String): android.graphics.Bitmap? = runCatching {
+    val comma = dataUrl.indexOf(',')
+    if (comma < 0) return@runCatching null
+    val bytes = android.util.Base64.decode(dataUrl.substring(comma + 1), android.util.Base64.DEFAULT)
+    android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+}.getOrNull()
+
 @Composable
 private fun SettingRow(
     icon: ImageVector,
     title: String,
     subtitle: String?,
     badge: String? = null,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    trailing: (@Composable () -> Unit)? = null
 ) {
-    // 标题在左，附加信息右对齐紧贴箭头，与标题同一行居中。
+    // 标题在左，附加信息右对齐紧贴箭头，与标题同一行居中；trailing 非空时替代右侧箭头。
+    val hasTrailing = trailing != null
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -406,7 +512,7 @@ private fun SettingRow(
             color = S520JColors.TextPrimary,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f)
+            modifier = if (hasTrailing) Modifier else Modifier.weight(1f)
         )
         if (!badge.isNullOrBlank()) {
             Box(
@@ -427,17 +533,30 @@ private fun SettingRow(
                 text = subtitle,
                 style = MaterialTheme.typography.bodyMedium,
                 color = S520JColors.TextSecondary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+                maxLines = if (hasTrailing) 2 else 1,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = if (hasTrailing) TextAlign.End else TextAlign.Start,
+                // 有 trailing 时副标题占据剩余空间并可折行，避免挤压标题。
+                modifier = if (hasTrailing) {
+                    Modifier
+                        .weight(1f)
+                        .padding(start = 8.dp)
+                } else {
+                    Modifier
+                }
             )
-            Spacer(Modifier.width(4.dp))
+            if (!hasTrailing) Spacer(Modifier.width(4.dp))
         }
-        Icon(
-            Icons.Filled.ChevronRight,
-            contentDescription = null,
-            tint = S520JColors.TextSecondary,
-            modifier = Modifier.size(18.dp)
-        )
+        if (trailing != null) {
+            trailing()
+        } else {
+            Icon(
+                Icons.Filled.ChevronRight,
+                contentDescription = null,
+                tint = S520JColors.TextSecondary,
+                modifier = Modifier.size(18.dp)
+            )
+        }
     }
 }
 

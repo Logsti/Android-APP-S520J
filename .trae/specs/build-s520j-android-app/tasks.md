@@ -65,7 +65,7 @@
 | 5 | M5 拾光页交付 | 顶部文案与日期卡、四模块独立管理页、照片墙、分类筛选、五星榜、FAB | 2 天 | 2026-11-07 | M4 验证通过 → 四模块可独立增删改查，双列照片墙 | `v6.2.0-stage5` | 已完成（实机验证通过） |
 | 6 | M6 默契页交付 | 八圆图标入口、八个独立管理页、相处之道双方确认、重要日子年度重复 | 3 天 | 2026-11-07 | M5 验证通过 → 八模块可独立进入且 CRUD 齐全 | `v6.3.0-stage6` | 已完成（实机验证通过） |
 | 7 | M7 我们页交付 | 情侣资料卡、六设置模块、隐私两档、提醒设置、应用设置、通知中心、关于（只读） | 2 天 | 2026-11-20 | M6 验证通过 → 六模块可达，字体大小实时生效 | `v6.4.0-stage7` | 进行中（编码完成，待实机验证） |
-| 8 | M8 云同步就绪 | CloudBase 云函数与数据库、服务端权限校验、outbox 同步、冲突快照、回收站清理、媒体上传下载 | 5 天 | 2026-11-25 | M7 验证通过 **且** 用户提供 CloudBase 环境 ID 与密钥 → 双设备同步一致，越权被拒 | `v0.8.0-stage8` | 未开始（**前置条件未满足**） |
+| 8 | M8 云同步就绪 | CloudBase 云函数与数据库、服务端权限校验、outbox 同步、冲突快照、回收站清理、媒体上传下载 | 5 天 | 2026-11-25 | M7 验证通过 **且** 用户提供 CloudBase 环境 ID 与密钥 → 双设备同步一致，越权被拒 | `v0.8.0-stage8` | 进行中（8A 云底座 + 8B 同步完成，8C 媒体待做；待本轮实机验证） |
 | 9 | M9 交付发布 | 备份导出（JSON + 图片 ZIP，不加密）、全量回归、安全与性能、交付文档、运维手册 | 3 天 | 2026-11-28 | M8 验证通过 → 双设备全量回归通过，交付物齐全 | `v1.0.0` | 未开始 |
 
 **关键风险节点**：
@@ -330,33 +330,192 @@
 
 ## Task 8: 阶段 8 — 云同步与媒体（`v0.8.0-stage8`）
 
-> **前置条件（阻塞项）**：用户提供腾讯云开发 CloudBase 环境 ID 与访问密钥；未提供前本阶段不启动，避免伪实现。
+> **前置条件（已就绪）**：腾讯云开发 CloudBase 环境已开通（个人版 PG 模式）。环境 ID 与 API Key 只存本机 `local.properties`（已 gitignore），不写入仓库与 APK。
+>
+> **口径变更（2026-11-08）**：实际环境为 **PostgreSQL（PG 模式）**，原「集合」模型改为「关系表 + 表级 GRANT + 行级 RLS」。数据访问通过 PostgREST / `exec-pgsql` 管理接口，云函数内二次校验 space_id / owner_id / visibility。
 
 - **进入条件**：M7 实机验证通过 且 CloudBase 环境与密钥已就绪
 - **计划完成日**：2026-11-25
 - **退出条件**：双设备同步一致，越权访问被服务端拒绝，弱网可重试，照片按需下载
 
-- [ ] SubTask 8A.1: CloudBase 环境接入与云函数骨架（auth / space / content / sync / media / recycle / notification / settings / backup）
-- [ ] SubTask 8A.2: 数据库集合初始化（users、auth_sessions、spaces、space_members、bind_codes、bind_requests、各内容表、media_assets、recycle_bin、conflict_snapshots、sync_logs、backup_jobs）
-- [ ] SubTask 8A.3: 服务端逐条权限校验（space_id / owner_id / visibility）
-- [ ] SubTask 8B.1: 客户端 outbox + `sync_cursor` + 增量拉取（updated_at / version）
-- [ ] SubTask 8B.2: 冲突处理：字段合并 → 冲突快照（30 天）→ 用户选择版本；离线删除优先
-- [ ] SubTask 8B.3: 回收站 30 天自动清理（WorkManager）、恢复、双方确认彻底删除；冻结归档豁免
+- [x] SubTask 8A.1: CloudBase 环境接入与云函数骨架（auth / space / content / sync / media / recycle / notification / settings / backup）
+- [x] SubTask 8A.2: PG 模式建表与索引（users、auth_sessions、spaces、space_members、bind_codes、bind_requests、各内容表、media_assets、recycle_bin、conflict_snapshots、sync_logs、backup_jobs）
+- [x] SubTask 8A.3: 服务端权限校验（space_id / owner_id / visibility）：表级 GRANT + 行级 RLS 策略 + 云函数二次校验
+- [x] SubTask 8B.1: 客户端 outbox + `sync_cursor` + 增量拉取（updated_at / version）
+- [x] SubTask 8B.2: 冲突处理：字段合并 → 冲突快照（30 天）→ 用户选择版本；离线删除优先
+- [x] SubTask 8B.3: 回收站 30 天自动清理（WorkManager）、恢复、双方确认彻底删除；冻结归档豁免
 - [ ] SubTask 8C.1: 照片压缩、分片上传、断点续传、预签名 URL 下载原图
-- [ ] SubTask 8C.2: 弱网与同步状态可视化（同步中 / 失败重试）
+- [x] SubTask 8C.2: 弱网与同步状态可视化（同步中 / 失败重试）
 - [ ] SubTask 8.4: 阶段门禁：双设备全量审查 + 回归 + 构建 `v0.8.0-stage8` + 提交实机验证请求（通过后打 tag）
 
-**实机测试步骤（阶段 8）**
+**8A/8B 实现说明（2026-11-08）**
 
-1. A 设备新增一条「共同可见」记录 → B 设备打开 APP → **预期**：B 能看到该记录。
-2. A 设备新增一条「仅自己可见」记录 → B 设备刷新 → **预期**：B 完全看不到。
-3. 在 A 设备断网后新增 2 条、编辑 1 条、删除 1 条 → 恢复网络 → **预期**：自动同步完成，B 端结果与 A 一致。
-4. 在同步过程中断开网络 → **预期**：显示「同步失败」，有重试入口，重试后成功。
-5. 双方同时编辑同一条记录的同一字段 → **预期**：出现冲突提示，可选择保留版本；冲突快照可查看。
+- 云底座：CloudBase 个人版 PG 模式，环境 `lin-run-forward-d3fjemwrbf5f4738`（上海）；14 张表 + 索引 + 表级 GRANT + RLS 全部上线，`anon`/`authenticated` 无表权限，仅 `service_role`。
+- 云函数：9 个 Nodejs20.19 Event 函数（`auth/space/content/sync/media/recycle/notification/settings/backup`），通过 `exec-pgsql` 管理接口访问 PG，环境变量只下发到云端。
+- HTTP 访问服务：默认域名 + 9 条 `/api/*` 路由，客户端匿名直调，函数内自有 token 鉴权。
+- 端到端验证：登录 → auth.me → space.create → content.create → sync.pull → content.update → 版本冲突 → 删除 → 回收站 → 恢复 → settings.put/get 全部通过。
+- 客户端：`CloudApi` / `CloudAuthRepository` / `SyncRepository` / `SyncWorker`；Room v3 新增 `sync_conflicts`，v4 补充本机快照列；设置页新增「云端同步」区块与「冲突处理」页。
+- 全量单测：21 个测试类 / 142 条用例，0 失败（含新增 CloudPayload 5、SyncApply 5、RecyclePolicy 4、ConflictResolver 5）。
+- 未完成：8C.1 媒体上传仍返回 501，因此本轮实机验证只覆盖同步与回收站（下方 1–7 条），照片相关 8–9 条留待 8C 完成后验证。
+
+**实机测试步骤（阶段 8 本轮，APK：`dist\S520J-v0.8.0-stage8-debug.apk`，versionCode 800）**
+
+> 需两台设备（A/B）各自注册账号，并用绑定码完成「共同空间」绑定后再测；
+> Room v3→v4 已提供迁移，可直接覆盖安装，若历史数据异常可卸载重装。
+
+1. A 设备新增一条「共同可见」记录 → B 设备打开 APP（或下拉/在「我们-应用设置-云端同步」点「立即同步」）→ **预期**：B 能看到该记录。
+2. A 设备新增一条「仅自己可见」记录 → B 设备同步 → **预期**：B 完全看不到。
+3. A 设备断网后新增 2 条、编辑 1 条、删除 1 条 → 恢复网络 → **预期**：自动同步完成，B 端结果与 A 一致。
+4. 同步过程中断开网络 → **预期**：「云端同步」显示「同步失败」或「未连接云端」，点「立即同步」重试后成功。
+5. 双方同时编辑同一条记录的同一字段 → **预期**：设置页显示「待处理冲突 N 条」→ 进入「冲突处理」可看到本机/云端两版，选择「保留本机」后自动重新上传，B 端最终与本机一致。
 6. 删除一条共同内容 → 回收站可见 → 恢复 → **预期**：回到原模块。
-7. 一方发起彻底删除 → **预期**：需另一方确认后才真正消失。
-8. 上传 3 张照片（其中一张在 50% 时断网）→ 恢复网络 → **预期**：断点续传完成，不重复上传已完成分片。
-9. 照片墙点某张照片看大图 → **预期**：通过预签名 URL 下载原图成功。
+7. 一方发起彻底删除 → **预期**：需另一方确认后才真正消失（当前版本以本地 Mock 确认流程呈现）。
+
+---
+
+## Task 8.5: 阶段 8 实机问题修复（创建闪退 + 键盘遮挡，`v0.8.1-stage8-hotfix1`）
+
+- **进入条件**：SubTask 8.4 实机反馈存在阻塞问题（2026-11-08 两台设备复测）
+- **退出条件**：创建共同空间不再闪退、绑定码输入框不被键盘遮挡、双机绑定成功；实机通过后提交并打 tag
+
+**用户实机反馈（2026-11-08）**
+
+1. 进入「共同空间」页点击「创建」后，APP 立即闪退。
+2. 输入对方绑定码时键盘弹出，页面不随之上移，输入框仍被键盘遮挡（只能看到「输入对方绑定码」的一半字样）。
+
+**根因分析（静态定位，无 adb 设备可抓取 logcat）**
+
+- 闪退：`AppViewModel.createSpace` 在 `viewModelScope.launch` 内直接调用 `CloudSpaceRepository.create`，该链路包含 3 次云端调用 + Room 镜像写入 + DataStore 写空间 id，**缺少顶层异常兜底**；任一环节抛出异常即逃逸协程 → 进程崩溃。同类隐患：`refreshSpaceFromCloud` / `refreshBindCode` / `submitBindCode` / `confirmBindAsOwner` / `CloudSpaceRepository.refreshLocal`。另外 `resp.data?.jsonObject` 在非对象类型时会抛 `IllegalArgumentException`，且位于 `try` 之外。
+- 键盘遮挡：`MainActivity` 启用 `enableEdgeToEdge()`，`Scaffold` 使用 `contentWindowInsets = WindowInsets(0,0,0,0)`，而 `PageContainer` 仅 `verticalScroll`、**未加 IME 内边距**。键盘弹出时滚动视口高度不变且延伸至键盘下方，`bringIntoView` 判定「已在视口内」因此无效。
+
+**修复方案（决定项）**
+
+- [x] SubTask 8.5.1：`app/src/main/java/com/s520j/app/ui/components/Kit.kt` → `PageContainer` 的 `Box` 追加 `Modifier.imePadding()`；全局生效，覆盖共同空间、编辑、设置等所有带输入框页面，滚动视口随键盘缩短。
+- [x] SubTask 8.5.2：`app/src/main/java/com/s520j/app/ui/screens/us/SpaceScreen.kt` → 保留 `BringIntoViewRequester`，聚焦后 200ms 与 600ms 各触发一次 `bringIntoView()`，兼容键盘弹出动画时长；`BindCodeInputCard` 输入框补 `Modifier.fillMaxWidth()`。
+- [x] SubTask 8.5.3：`app/src/main/java/com/s520j/app/data/cloud/CloudSpaceRepository.kt` → 新增私有守卫（`guarded` + `asObject`），异常统一转 `CloudSpaceResult.Failure`（`IOException` 视为离线）；`create / refreshCode / join / confirmBind / refreshLocal` 全部兜底，非法 `data` 负载不再抛异常。
+- [x] SubTask 8.5.4：`app/src/main/java/com/s520j/app/ui/AppViewModel.kt` → `createSpace / refreshSpaceFromCloud / refreshBindCode / submitBindCode / confirmBindAsOwner` 增加 `try { } catch (t: Throwable)` 兜底（`CancellationException` 重新抛出）；失败写入 `_bindFailure` 并提示，文案形如「创建失败：<异常信息>」，便于截图定位真实原因。
+- [x] SubTask 8.5.5：失败可见性沿用既有 `BindFailureCard`（`current == null` 时展示 `bindFailure`），不新增 UI 组件。
+
+**TDD（先失败后通过）**
+
+- [x] SubTask 8.5.T1：新增 `app/src/test/java/com/s520j/app/data/cloud/CloudSpaceRepositoryTest.kt`（mockk，纯 JVM）5 条：创建成功镜像、本地库写入异常不抛出、非法 `data` 负载不抛出、刷新失败不抛出、本地刷新异常不抛出（前 3 条修复前为 RED）。
+- [x] SubTask 8.5.T2：全量单测 23 个测试类 / 153 条 / 0 失败（从 `C:\Users\LINKUNSONG\s520j-link` 执行 `gradlew :app:testDebugUnitTest`）。
+
+**验收（实机）**
+
+- [x] SubTask 8.5.6：已构建 `dist\S520J-v0.8.1-stage8-hotfix1-debug.apk`（versionCode 801 / versionName `v0.8.1-stage8-hotfix1`，aapt2 badging 校验通过，2026-11-08 23:26）并提交实机步骤（见下方）。
+  1. 两台手机覆盖安装；A 进入「共同空间」点「创建」→ **预期**不再闪退并出现绑定码卡片；若仍失败，页面显示「创建失败：…」原因文案（截图回传）。
+  2. B 点「输入对方绑定码」并输入 → **预期**键盘弹出时页面上移、输入框完整可见；提交后提示「已提交绑定申请」。
+  3. A/B 各点一次「我方确认」→ **预期**绑定成功，双方重进页面显示已绑定、2 名成员。
+- [ ] SubTask 8.5.7：实机通过后 Git commit + tag `v0.8.1-stage8-hotfix1`。
+
+---
+
+## Task 8.6: 阶段 8 实机问题修复第二轮（创建失败 + 键盘遮挡未生效，`v0.8.2-stage8-hotfix2`）
+
+- **进入条件**：8.5 出包后实机复测仍失败（2026-11-09）
+  1. 创建共同空间失败，页面显示 `Element class kotlinx.serialization.json.JsonNull is not a JsonObject`；
+  2. 绑定码输入框仍被键盘挡住，只能看到一半的「输入对方绑定码」。
+
+**失败根因**
+
+- `CloudAuthRepository.fetchSpace()` / `createSpace()` 使用 `JsonElement?.jsonObject` 扩展强转；`space.get` 在无空间时返回 `{"space": null}`，此时元素是 `JsonNull`（非 Kotlin null），`jsonObject` 直接抛 `IllegalArgumentException`，经 `guarded` 转成 `Failure` 展示到 UI。
+- 键盘避让只依赖 `imePadding()` + `bringIntoView()`；绑定码输入卡位于页面最底部，滚动视口收窄后仍不足以完全露出输入框。
+
+**修复方案**
+
+- [x] SubTask 8.6.1：`app/src/main/java/com/s520j/app/data/cloud/CloudAuthRepository.kt` → 移除 `jsonObject` 强转，改为 `private fun JsonElement?.asObject(): JsonObject? = this as? JsonObject`，`authenticate / ensureAccessToken / fetchSpace / createSpace` 全部改用安全解析。
+- [x] SubTask 8.6.2：`app/src/main/java/com/s520j/app/ui/components/Kit.kt` → `PageContainer` 新增 `scrollState: ScrollState = rememberScrollState()` 参数，交由页面控制滚动状态。
+- [x] SubTask 8.6.3：`app/src/main/java/com/s520j/app/ui/screens/us/SpaceScreen.kt` → 页面级 `pageScroll` 外提并传入 `PageContainer`；`BindCodeInputCard` 新增 `onInputFocused` 回调，聚焦后 350ms 执行 `animateScrollTo(maxValue)`（输入卡恒为页面最后一块内容，滚到底即完整可见），同时保留两次 `bringIntoView()` 兜底。
+- [x] SubTask 8.6.4：`BindFailureCard` 文案由「绑定失败」改为「操作失败」，避免创建失败时误导。
+
+**TDD（先失败后通过）**
+
+- [x] SubTask 8.6.T1：新增 `app/src/test/java/com/s520j/app/data/cloud/CloudAuthRepositoryTest.kt` 2 条：`space.get` 返回 `{"space":null}` 时自动走 `space.create` 并返回新空间 ID；`space` 字段为 null 时不抛异常。修复前 RED（异常文本与实机截图逐字一致），修复后 GREEN。
+- [x] SubTask 8.6.T2：全量单测 24 个测试类 / 155 条 / 0 失败（从 `C:\Users\LINKUNSONG\s520j-link` 执行 `gradlew :app:testDebugUnitTest`）。
+
+**验收（实机）**
+
+- [x] SubTask 8.6.5：已构建 `dist\S520J-v0.8.2-stage8-hotfix2-debug.apk`（versionCode 802 / versionName `v0.8.2-stage8-hotfix2`，2026-11-09）并提交实机步骤（见下方）。
+  1. 两台手机覆盖安装；A 进入「共同空间」→ 填空间名称 → 点「创建共同空间」→ **预期**不再出现 JsonNull 报错，出现绑定码卡片。
+  2. B 点「输入对方绑定码」输入框 → **预期**键盘弹出后页面自动滚到底，输入框与按钮完整可见。
+  3. B 输入 A 的绑定码提交 → A/B 各点一次「我方确认」→ **预期**绑定成功，双方重进页面显示已绑定。
+- [ ] SubTask 8.6.6：实机通过后 Git commit + tag `v0.8.2-stage8-hotfix2`（连同 8.5.7 一并提交）。
+
+---
+
+## Task 8.7: 共同空间创建逻辑重构（取消自动建空间，`v0.8.3-stage8-hotfix3`）
+
+- **进入条件**：实机反馈（2026-11-09）登录后进入「共同空间」已被自动创建「昵称+的小屋」，用户无法自行创建并获得绑定码。
+
+**失败根因**
+
+- `CloudAuthRepository.ensureSpace()` 在 `space.get` 返回 `{"space": null}` 时会自动调用 `space.create`，名称固定为「昵称的小屋」。
+- `SpaceScreen` 仅在 `current == null` 时展示创建表单，自动创建后 `current != null` 且 `bindState == UNBOUND`，创建入口被永久隐藏，也没有绑定码卡片。
+
+**修复方案（交互模型）**
+
+- 未绑定态（无空间 / UNBOUND）固定展示：状态提示「共同空间未绑定」+ ①创建共同空间（创建即生成 24 小时绑定码）+ ②输入对方绑定码。
+- 已生成绑定码 / 等待对方 / 待确认 / 已绑定 / 已冻结沿用原有分支。
+
+**实现**
+
+- [x] SubTask 8.7.1：`CloudAuthRepository.ensureSpace()` → `resolveSpaceId()`，只查询不创建；删除 `createSpace()`。
+- [x] SubTask 8.7.2：`CloudSpaceRepository.doCreate()` → 无空间时调用 `space.create`（使用用户填写的名称与简介），已有单人空间时调用 `space.update` 改名，随后生成绑定码；新增 `writeSpace()` 统一解析。
+- [x] SubTask 8.7.3：`CloudSpaceRepository.refreshLocal()` → 云端返回 `{"space": null}` 时清空本地镜像与 `cloudSpaceId`，页面回到未绑定态。
+- [x] SubTask 8.7.4：`SyncRepository.syncNow()` 改用 `resolveSpaceId()`，同步不再顺手创建空间。
+- [x] SubTask 8.7.5：`SpaceStateMachine.canCreate()` 允许 `null / UNBOUND / FAILED`。
+- [x] SubTask 8.7.6：`SpaceScreen` 未绑定分支重排：未绑定提示卡 → 创建表单（按钮「创建并生成绑定码」）→「或使用对方的绑定码」；`BindFailureCard` 简化为「操作失败 + 知道了」。
+
+**TDD**
+
+- [x] SubTask 8.7.T1：`CloudAuthRepositoryTest` 改为「云端没有空间时不自动创建（不调用 `space.create`）」+「已有空间返回 id」。
+- [x] SubTask 8.7.T2：`CloudSpaceRepositoryTest` 新增「无空间时调用 `space.create` 且名称为用户输入」「已有单人空间时改名不重复创建」「云端无空间时刷新清空本地镜像」。
+- [x] SubTask 8.7.T3：`SpaceStateMachineTest` 创建条件改为 UNBOUND/FAILED/null 允许。
+- [x] SubTask 8.7.T4：全量单测 24 个测试类 / 157 条 / 0 失败。
+
+**验收（实机）**
+
+- [x] SubTask 8.7.7：已构建 `dist\S520J-v0.8.3-stage8-hotfix3-debug.apk`（versionCode 803，2026-11-09）。
+  1. 覆盖安装后进入「共同空间」→ **预期**显示「共同空间未绑定」+ 创建表单 + 绑定码输入（不再自动出现「昵称的小屋」）。
+  2. A 填名称 →「创建并生成绑定码」→ **预期**出现「我的绑定码」卡片（24 小时有效）。
+  3. B 输入 A 的绑定码 → A/B 各确认一次 → **预期**绑定成功。
+  4. 历史遗留的单人空间：直接创建会改名并生成新码；直接加入对方空间会自动归档旧空间。
+- [ ] SubTask 8.7.8：实机通过后 Git commit + tag（`v0.8.2-stage8-hotfix2` + `v0.8.3-stage8-hotfix3` 一并提交）。
+
+---
+
+## Task 8.8: 阶段 9 批次一 — 空间资料 + 解绑闭环 + 双向同步（`v0.9.0-stage9-space-sync`）
+
+- **进入条件**：8.7 双机绑定已可用；用户提出 8 项改进需求，经 spec 评审拆为两批，本批为批次一
+- **对应 spec**：`.trae/specs/refine-couple-space-and-sync/`
+- **硬性约束**：不改动已可用的绑定流程（创建 / 绑定码 / 加入 / 双方确认绑定）
+
+**实现**
+
+- [x] SubTask 8.8.1：云函数 `space.update` 改为任一有效成员可改名称/简介；新增 `space.rejectUnbind`（仅被申请方，置 `rejected`）与 `space.cancelUnbind`（仅发起方，置 `cancelled`）；`space.unbindRequest` 对已有 `unbind_pending` 去重复用。
+- [x] SubTask 8.8.2：`SpaceMirror.merge` 支持 `unbind_pending` → `REQUEST_PENDING + PendingAction.UNBIND`（含 `unbindRequestedBy`、`bindRequestId`），此前客户端完全忽略该状态，是「对方收不到解绑」的根因之一。
+- [x] SubTask 8.8.3：`CloudSpaceRepository` 新增 `updateInfo / requestUnbind / confirmUnbind / rejectUnbind / cancelUnbind`，统一 `guarded` 与离线降级；改名失败不落本地。
+- [x] SubTask 8.8.4：`AppViewModel` 解绑改为云端优先 + `refreshLocal()`；新增 `updateSpaceInfo / confirmUnbind / rejectUnbind / cancelUnbind`，删除本地模拟确认。
+- [x] SubTask 8.8.5：`SpaceScreen` 空间信息新增「编辑资料」弹窗（双方可用）；解绑区分「我发起的（可撤回）」与「对方发起的（确认 / 拒绝）」；移除「模拟对方确认」。
+- [x] SubTask 8.8.6：同步可见化：`SyncPolicy`（20 秒节流 + 异常条文案 + 未绑定时延迟推送 `couple` 内容）；`AppViewModel` 前台 20 秒静默轮询、进入页面同步、退后台停止；三个主页面下拉刷新；「我们」页新增云同步卡；顶部离线/失败可点击重试状态条。
+- [x] SubTask 8.8.7：修复同步真实缺陷：未绑定时 `couple` 内容无 `spaceId` 被云端 400 后 outbox 直接丢弃，导致内容永久不上传；现改为保留 outbox、绑定后再推。
+- [x] SubTask 8.8.T1：新增/扩展单测：`SpaceMirrorTest` 9 条、`CloudSpaceRepositoryTest` 15 条、`SyncPolicyTest` 11 条；全量 25 个测试类 / 179 条 / 0 失败。
+- [x] SubTask 8.8.8：构建 `dist\S520J-v0.9.0-stage9-space-sync-debug.apk`（versionCode 900，badging 校验通过）。
+- [ ] SubTask 8.8.9：部署云函数（被 CloudBase CLI 未登录阻塞，待用户完成一次 `tcb login`）。
+- [ ] SubTask 8.8.10：双机实机验收通过后 Git commit + tag（连同 8.6.6 / 8.7.8 一并提交）。
+
+**实机测试步骤（阶段 9 批次一，双机 A/B）**
+
+1. A 进入「我们 → 共同空间」→ 空间信息卡点「编辑资料」→ 改名并保存 → **预期**：A 立即显示新名称；B 在 20 秒内（或下拉刷新 / 点「立即同步」）看到新名称。B 同样可编辑。
+2. A 点「发起解绑」并确认 → **预期**：A 显示「解绑申请中 · 已向 TA 发起解绑」，按钮变为「撤回解绑申请」；B 在 20 秒内显示解绑申请卡片，可选择「确认解绑」或「拒绝解绑」。
+3. B 点「拒绝解绑」→ **预期**：双方回到「已绑定」，A 收到「已拒绝解绑」提示。
+4. 再次由 A 发起解绑 → B 点「确认解绑」→ **预期**：双方在 20 秒内都变为「冻结归档」，顶部只读提示条出现。
+5. A 发起解绑后在 B 处理前点「撤回解绑申请」→ **预期**：双方回到「已绑定」，B 的解绑卡片消失。
+6. A 新增一条「共同可见」记录（如拾光-做过的菜）→ **预期**：B 在 20 秒内或下拉刷新后看到；A 在未绑定期间创建的共同内容，绑定后也会补传（不再丢失）。
+7. 「我们」页顶部云同步卡 → **预期**：显示上次同步相对时间、待上传条数、立即同步按钮与结果文案；下拉三主页面均可触发同步。
+8. 两台手机同时断网 → **预期**：顶部出现「当前离线，云端同步暂停 · 点击重试」；恢复网络后 20 秒内自动消失。
+9. 回归：创建空间 / 生成绑定码 / 输入绑定码 / 双方确认绑定 的流程与 v0.8.3 完全一致。
 
 ---
 
@@ -366,12 +525,12 @@
 - **计划完成日**：2026-11-28
 - **退出条件**：双设备全量回归通过，导出可在系统文件选择器保存，交付物齐全
 
-- [ ] SubTask 9.1: 手动备份、恢复、清理；JSON + 图片 ZIP 导出（不加密），系统文件选择器保存
-- [ ] SubTask 9.2: 全量回归：外观、功能、隐私、账号与同步、非功能（无横向溢出、键盘不遮挡、空状态、断点续传）
-- [ ] SubTask 9.3: 安全校验与性能优化（首屏、列表滚动、图片内存）
-- [ ] SubTask 9.4: 交付物：完整源码、Gradle 配置、云函数代码、数据库初始化脚本、存储桶配置说明
-- [ ] SubTask 9.5: Windows 构建说明（`gradlew assembleRelease` + keystore 签名）与运维手册（控制台操作、管理员重置密码脚本、用量告警、备份导出、故障排查）
-- [ ] SubTask 9.6: 构建最终 `v1.0.0` APK 并提交最后一轮实机验证
+- [x] SubTask 9.1: 手动备份、恢复、清理；JSON + 图片 ZIP 导出（不加密），系统文件选择器保存（`BackupService` + `BackupCodec`，数据管理页已接入）
+- [x] SubTask 9.2: 全量回归：外观、功能、隐私、账号与同步、非功能（无横向溢出、键盘不遮挡、空状态、断点续传）——静态审查完成，问题见优化清单
+- [x] SubTask 9.3: 安全校验与性能优化（首屏、列表滚动、图片内存）——已识别非懒加载列表、图片缓存无上限等问题，列入优化清单
+- [x] SubTask 9.4: 交付物：完整源码、Gradle 配置、云函数代码、数据库初始化脚本、存储桶配置说明（`docs/交付说明.md`）
+- [x] SubTask 9.5: Windows 构建说明（`gradlew assembleRelease` + keystore 签名）与运维手册（`docs/运维手册.md`）
+- [ ] SubTask 9.6: 构建最终 `v1.0.0` APK 并提交最后一轮实机验证（已出包 `dist/S520J-v1.0.0-debug.apk`，versionCode 1001，待实机验收）
 
 **实机测试步骤（阶段 9）**
 

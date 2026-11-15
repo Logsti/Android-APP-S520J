@@ -2,17 +2,22 @@ package com.s520j.app.domain.heart
 
 import com.s520j.app.data.model.ContentModule
 
-/** 快速记录五入口：仅作采集类型，保存时路由到唯一归属模块。 */
+/** 快速记录采集类型：仅作采集类型，保存时路由到唯一归属模块。 */
 object QuickRecordTypes {
     const val PHOTO = "照片"
     const val COOKING = "做饭"
     const val SHOP = "探店"
     const val TRAVEL = "旅行"
     const val ROMANTIC = "浪漫时刻"
+    const val JOT = "随手记"
 
-    val all: List<String> = listOf(PHOTO, COOKING, SHOP, TRAVEL, ROMANTIC)
+    /** 快速记录单行五入口；随手记改由标题角标进入，不占快速记录位。 */
+    val primary: List<String> = listOf(PHOTO, COOKING, SHOP, TRAVEL, ROMANTIC)
 
-    /** 五种类型都必须带照片；类型级门禁只用于入口校验。 */
+    /** 全部采集类型（含随手记），供路由与迁移使用。 */
+    val all: List<String> = primary + JOT
+
+    /** 所有类型都必须带照片；类型级门禁只用于入口校验。 */
     fun needsPhoto(type: String?): Boolean = normalize(type) != null
 
     fun normalize(type: String?): String? = type?.trim()?.takeIf { it in all }
@@ -24,6 +29,7 @@ object QuickRecordTypes {
         SHOP -> ContentModule.SHOP
         TRAVEL -> ContentModule.TRAVEL
         ROMANTIC -> ContentModule.ROMANTIC_MOMENT
+        JOT -> ContentModule.JOT
         else -> null
     }
 }

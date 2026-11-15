@@ -12,7 +12,7 @@ enum class Visibility {
         get() = if (this == PRIVATE) "仅自己" else "共同"
 
     companion object {
-        fun from(raw: String?): Visibility = if (raw == "COUPLE") COUPLE else PRIVATE
+        fun from(raw: String?): Visibility = if (raw.equals("COUPLE", ignoreCase = true)) COUPLE else PRIVATE
     }
 }
 
@@ -45,6 +45,8 @@ enum class ContentModule(
     PROMISE(ModuleGroup.TACIT, "彼此的承诺", Visibility.COUPLE),
     DEED(ModuleGroup.TACIT, "为彼此做过", Visibility.PRIVATE, needsPhoto = true),
     ROMANTIC_MOMENT(ModuleGroup.TACIT, "浪漫时刻", Visibility.COUPLE, needsPhoto = true),
+    JOT(ModuleGroup.TACIT, "随手记", Visibility.COUPLE, needsPhoto = true),
+    LETTER(ModuleGroup.TACIT, "一封情书", Visibility.COUPLE, needsPhoto = true),
     RELATIONSHIP_RULE(ModuleGroup.TACIT, "相处之道", Visibility.COUPLE),
     LIKE(ModuleGroup.TACIT, "TA 的喜欢", Visibility.PRIVATE),
     DISLIKE(ModuleGroup.TACIT, "TA 不喜欢", Visibility.PRIVATE),
@@ -68,6 +70,8 @@ data class ContentRecord(
     val content: String,
     val eventDate: Long?,
     val mediaIds: List<String>,
+    /** 云端图片标识（跨设备同步用）；mediaIds 是本机可显示路径，两者一一对应。 */
+    val mediaRefs: List<String> = emptyList(),
     val extra: Map<String, String>,
     val createdAt: Long,
     val updatedAt: Long,

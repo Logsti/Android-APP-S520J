@@ -20,6 +20,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.outlined.Photo
 import androidx.compose.material3.AlertDialog
@@ -29,6 +30,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -38,19 +40,21 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImage
 import com.s520j.app.data.model.ContentModule
 import com.s520j.app.data.model.ContentRecord
 import com.s520j.app.data.model.Visibility
+import com.s520j.app.data.sync.SyncPhase
 import com.s520j.app.domain.gallery.StarBoard
+import com.s520j.app.domain.heart.GalleryPhotoLayout
 import com.s520j.app.domain.heart.PhotoFeed
 import com.s520j.app.ui.AppViewModel
 import com.s520j.app.ui.components.EmptyState
 import com.s520j.app.ui.components.PageContainer
+import com.s520j.app.ui.components.PhotoPagerDialog
+import com.s520j.app.ui.components.RecordPhotoGrid
 import com.s520j.app.ui.components.SectionHeader
 import com.s520j.app.ui.components.SoftCard
 import com.s520j.app.ui.components.SoftTextField
@@ -66,15 +70,23 @@ fun GalleryScreen(
     vm: AppViewModel,
     onOpenModule: (ContentModule) -> Unit,
     onOpenRecord: (ContentModule, String) -> Unit,
-    onCreateRecord: (ContentModule) -> Unit
+    onCreateRecord: (ContentModule) -> Unit,
+    onOpenStarBoard: () -> Unit,
+    onOpenSharedPhotos: () -> Unit
 ) {
     val allFlow = remember { vm.allContents() }
     val records by allFlow.collectAsState(initial = emptyList())
     val isReadOnly by vm.isReadOnly.collectAsState()
+    val syncState by vm.syncState.collectAsState()
+
+    // 进入页面时补一次同步（内部受 20 秒节流保护）。
+    LaunchedEffect(Unit) { vm.syncOnEnter() }
 
     var category by remember { mutableStateOf(PhotoFeed.ALL) }
     var query by remember { mutableStateOf("") }
     var showAddEntries by remember { mutableStateOf(false) }
+    // 非空时展示全屏多图浏览；点击照片区写入，关闭时清空。
+    var viewingImages by remember { mutableStateOf<List<String>?>(null) }
 
     // 照片墙 = 五个带图来源，分类完全由 module 派生。
     val feed = remember(records) { PhotoFeed.feed(records) }
@@ -83,11 +95,13 @@ fun GalleryScreen(
     val dishCount = remember(records) { records.count { it.module == ContentModule.DISH } }
     val shopCount = remember(records) { records.count { it.module == ContentModule.SHOP } }
     val travelCount = remember(records) { records.count { it.module == ContentModule.TRAVEL } }
-    val songStars = remember(records) { StarBoard.list(records, StarBoard.SONG) }
-    val jinStars = remember(records) { StarBoard.list(records, StarBoard.JIN) }
+    val allStars = remember(records) { StarBoard.list(records, StarBoard.ALL) }
 
     Box(Modifier.fillMaxWidth()) {
-        PageContainer {
+        PageContainer(
+            onRefresh = vm::syncNow,
+            refreshing = syncState.phase == SyncPhase.SYNCING
+        ) {
             Spacer(Modifier.height(28.dp))
             Text(
                 text = "拾起生活里的微光。",
@@ -121,9 +135,9 @@ fun GalleryScreen(
 
             Spacer(Modifier.height(Dimens.SectionGap))
 
-            // 四张统计卡：共同照片仅统计照片墙数量，不跳转；其余三张进入独立管理页。
+            // 四张统计卡：共同照片进入独立子页；其余三张进入独立管理页。
             Row(horizontalArrangement = Arrangement.spacedBy(Dimens.CardGap)) {
-                StatCard("共同照片", feed.size, Modifier.weight(1f))
+                StatCard("共同照片", feed.size, Modifier.weight(1f), onClick = onOpenSharedPhotos)
                 StatCard("一起做过的菜", dishCount, Modifier.weight(1f)) { onOpenModule(ContentModule.DISH) }
             }
             Spacer(Modifier.height(Dimens.CardGap))
@@ -187,9 +201,14 @@ fun GalleryScreen(
                 visible.chunked(2).forEach { pair ->
                     Row(horizontalArrangement = Arrangement.spacedBy(Dimens.CardGap)) {
                         pair.forEach { photo ->
-                            PhotoTile(photo, Modifier.weight(1f)) {
-                                onOpenRecord(photo.module, photo.id)
-                            }
+                            PhotoTile(
+                                photo = photo,
+                                modifier = Modifier.weight(1f),
+                                onOpenPhotos = {
+                                    viewingImages = photo.mediaIds.take(GalleryPhotoLayout.MAX)
+                                },
+                                onEdit = { onOpenRecord(photo.module, photo.id) }
+                            )
                         }
                         if (pair.size == 1) {
                             Spacer(Modifier.weight(1f))
@@ -202,15 +221,9 @@ fun GalleryScreen(
             Spacer(Modifier.height(Dimens.SectionGap))
 
             StarBoardCard(
-                title = "松记五星榜",
-                items = songStars,
-                onClick = { onOpenModule(ContentModule.DISH) }
-            )
-            Spacer(Modifier.height(Dimens.CardGap))
-            StarBoardCard(
-                title = "锦记五星榜",
-                items = jinStars,
-                onClick = { onOpenModule(ContentModule.DISH) }
+                title = "五星榜",
+                items = allStars,
+                onClick = onOpenStarBoard
             )
 
             Spacer(Modifier.height(96.dp))
@@ -240,6 +253,14 @@ fun GalleryScreen(
                 showAddEntries = false
                 onCreateRecord(module)
             }
+        )
+    }
+
+    viewingImages?.let { images ->
+        PhotoPagerDialog(
+            images = images,
+            initialIndex = 0,
+            onDismiss = { viewingImages = null }
         )
     }
 }
@@ -376,8 +397,13 @@ private fun StarBoardCard(
 }
 
 @Composable
-private fun PhotoTile(photo: ContentRecord, modifier: Modifier = Modifier, onClick: () -> Unit) {
-    val cover = photo.mediaIds.firstOrNull()
+private fun PhotoTile(
+    photo: ContentRecord,
+    modifier: Modifier = Modifier,
+    onOpenPhotos: () -> Unit,
+    onEdit: () -> Unit
+) {
+    val images = photo.mediaIds.take(GalleryPhotoLayout.MAX)
     Column(modifier = modifier) {
         Box(
             modifier = Modifier
@@ -385,22 +411,21 @@ private fun PhotoTile(photo: ContentRecord, modifier: Modifier = Modifier, onCli
                 .aspectRatio(0.86f)
                 .clip(RoundedCornerShape(22.dp))
                 .background(S520JColors.AccentPink)
-                .clickable { onClick() },
+                .clickable(enabled = images.isNotEmpty()) { onOpenPhotos() },
             contentAlignment = Alignment.Center
         ) {
-            if (cover != null) {
-                AsyncImage(
-                    model = cover,
-                    contentDescription = photo.title,
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop
-                )
-            } else {
+            if (images.isEmpty()) {
                 Icon(
                     imageVector = Icons.Outlined.Photo,
                     contentDescription = null,
                     tint = S520JColors.PrimarySoft,
                     modifier = Modifier.size(34.dp)
+                )
+            } else {
+                RecordPhotoGrid(
+                    images = images,
+                    title = photo.title,
+                    modifier = Modifier.fillMaxSize()
                 )
             }
             if (photo.visibility == Visibility.PRIVATE) {
@@ -428,6 +453,26 @@ private fun PhotoTile(photo: ContentRecord, modifier: Modifier = Modifier, onCli
                     style = MaterialTheme.typography.labelSmall,
                     color = S520JColors.TextSecondary
                 )
+            }
+            // 编辑入口：右下角 28dp 半透明按钮，点击不穿透到照片区。
+            if (photo.id.isNotBlank()) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(8.dp)
+                        .size(28.dp)
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(S520JColors.Surface.copy(alpha = 0.86f))
+                        .clickable { onEdit() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Edit,
+                        contentDescription = "编辑",
+                        tint = S520JColors.TextSecondary,
+                        modifier = Modifier.size(15.dp)
+                    )
+                }
             }
         }
         Spacer(Modifier.height(6.dp))

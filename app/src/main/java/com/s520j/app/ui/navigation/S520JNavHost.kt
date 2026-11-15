@@ -1,8 +1,16 @@
 package com.s520j.app.ui.navigation
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -10,19 +18,32 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -31,16 +52,22 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import android.net.Uri
+import com.s520j.app.data.couple.CoupleEvent
 import com.s520j.app.data.model.ContentModule
+import com.s520j.app.data.sync.SyncPolicy
 import com.s520j.app.ui.AppViewModel
 import com.s520j.app.ui.screens.gallery.GalleryScreen
+import com.s520j.app.ui.screens.gallery.SharedPhotosScreen
+import com.s520j.app.ui.screens.gallery.StarBoardScreen
 import com.s520j.app.ui.screens.heart.HeartScreen
 import com.s520j.app.ui.screens.module.ModuleEditScreen
 import com.s520j.app.ui.screens.module.ModuleListScreen
+import com.s520j.app.ui.screens.tacit.LetterListScreen
 import com.s520j.app.ui.screens.tacit.TacitScreen
 import com.s520j.app.ui.screens.us.AboutScreen
 import com.s520j.app.ui.screens.us.AccountSecurityScreen
 import com.s520j.app.ui.screens.us.AppSettingsScreen
+import com.s520j.app.ui.screens.us.ConflictResolutionScreen
 import com.s520j.app.ui.screens.us.DataManagementScreen
 import com.s520j.app.ui.screens.us.NotificationCenterScreen
 import com.s520j.app.ui.screens.us.PreferenceSettingsScreen
@@ -63,6 +90,21 @@ fun MainShell(vm: AppViewModel) {
     val snackbarHostState = remember { SnackbarHostState() }
     val mainRoutes = remember { MainTabs.map { it.route }.toSet() }
     val isReadOnly by vm.isReadOnly.collectAsState()
+    val syncState by vm.syncState.collectAsState()
+
+    // 前后台自动同步（9.3）：前台每 20 秒一次，退到后台立即停止。
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_START -> vm.onAppForeground()
+                Lifecycle.Event.ON_STOP -> vm.onAppBackground()
+                else -> Unit
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     LaunchedEffect(Unit) {
         vm.messages.collect { message ->
@@ -76,6 +118,30 @@ fun MainShell(vm: AppViewModel) {
                     navController.navigate("module/${module.name}")
                 }
             }
+        }
+    }
+
+    // 碰一碰 / 挑战达成横幅：展示 6 秒后自动消失，点击进入通知中心。
+    val pokeBanner by vm.pokeBanner.collectAsState()
+    LaunchedEffect(pokeBanner?.id) {
+        if (pokeBanner != null) {
+            kotlinx.coroutines.delay(6_000)
+            vm.dismissPokeBanner()
+        }
+    }
+
+    // Android 13+ 通知权限：只询问一次，拒绝后仍有应用内横幅与未读记录。
+    val context = LocalContext.current
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { vm.markNotifyPermissionAsked() }
+    LaunchedEffect(Unit) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=
+            PackageManager.PERMISSION_GRANTED &&
+            vm.shouldAskNotifyPermission()
+        ) {
+            permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
     }
 
@@ -120,6 +186,20 @@ fun MainShell(vm: AppViewModel) {
             if (isReadOnly) {
                 ReadOnlyNotice()
             }
+            // 离线/失败时常驻一条可点击的状态条，避免同步异常被藏进设置页。
+            SyncPolicy.statusBarText(syncState.phase)?.let { text ->
+                SyncStatusBar(text = text, onClick = vm::syncNow)
+            }
+            pokeBanner?.let { event ->
+                CoupleBanner(
+                    event = event,
+                    onDismiss = vm::dismissPokeBanner,
+                    onClick = {
+                        vm.dismissPokeBanner()
+                        navController.navigate("notifications")
+                    }
+                )
+            }
             NavHost(
                 navController = navController,
                 startDestination = RouteHeart,
@@ -153,7 +233,27 @@ fun MainShell(vm: AppViewModel) {
                         },
                         onCreateRecord = { module ->
                             navController.navigate("module/${module.name}/edit")
-                        }
+                        },
+                        onOpenStarBoard = { navController.navigate("starboard") },
+                        onOpenSharedPhotos = { navController.navigate("gallery/photos") }
+                    )
+                }
+
+                composable("gallery/photos") {
+                    SharedPhotosScreen(
+                        vm = vm,
+                        onBack = { navController.popBackStack() }
+                    )
+                }
+
+                composable("starboard") {
+                    StarBoardScreen(
+                        vm = vm,
+                        onBack = { navController.popBackStack() },
+                        onOpenRecord = { module, id ->
+                            navController.navigate("module/${module.name}/edit?recordId=${Uri.encode(id)}")
+                        },
+                        onCreateDish = { navController.navigate("module/${ContentModule.DISH.name}/edit") }
                     )
                 }
 
@@ -189,14 +289,24 @@ fun MainShell(vm: AppViewModel) {
                     arguments = listOf(navArgument("module") { type = NavType.StringType })
                 ) { backStackEntry ->
                     val module = ContentModule.from(backStackEntry.arguments?.getString("module").orEmpty())
-                    ModuleListScreen(
-                        vm = vm,
-                        module = module,
-                        onBack = { navController.popBackStack() },
-                        onEdit = { id ->
-                            navController.navigate("module/${module.name}/edit?recordId=${Uri.encode(id ?: "")}")
-                        }
-                    )
+                    if (module == ContentModule.LETTER) {
+                        LetterListScreen(
+                            vm = vm,
+                            onBack = { navController.popBackStack() },
+                            onEdit = { id ->
+                                navController.navigate("module/${module.name}/edit?recordId=${Uri.encode(id ?: "")}")
+                            }
+                        )
+                    } else {
+                        ModuleListScreen(
+                            vm = vm,
+                            module = module,
+                            onBack = { navController.popBackStack() },
+                            onEdit = { id ->
+                                navController.navigate("module/${module.name}/edit?recordId=${Uri.encode(id ?: "")}")
+                            }
+                        )
+                    }
                 }
 
                 composable(
@@ -242,7 +352,15 @@ fun MainShell(vm: AppViewModel) {
                 }
 
                 composable("settings/appearance") {
-                    AppSettingsScreen(vm = vm, onBack = { navController.popBackStack() })
+                    AppSettingsScreen(
+                        vm = vm,
+                        onBack = { navController.popBackStack() },
+                        onOpenConflicts = { navController.navigate("sync/conflicts") }
+                    )
+                }
+
+                composable("sync/conflicts") {
+                    ConflictResolutionScreen(vm = vm, onBack = { navController.popBackStack() })
                 }
 
                 composable("settings/preference") {
@@ -274,6 +392,66 @@ fun MainShell(vm: AppViewModel) {
                 }
             }
         }
+    }
+}
+
+/** 碰一碰 / 挑战达成横幅：置顶醒目展示，可点击进入通知中心或手动关闭。 */
+@Composable
+private fun CoupleBanner(event: CoupleEvent, onDismiss: () -> Unit, onClick: () -> Unit) {
+    val challengeDone = event.type == CoupleEvent.TYPE_CHALLENGE_DONE
+    val title = if (challengeDone) "今日挑战达成" else "${event.fromName.ifBlank { "TA" }} 碰了碰你"
+    val body = if (challengeDone) "你们俩今天都完成了，真好。"
+    else event.body.ifBlank { "打开看看 TA 想说什么" }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = Dimens.PageHorizontalPadding, vertical = 6.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(S520JColors.Primary)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium,
+                color = S520JColors.PureWhite,
+                fontWeight = FontWeight.SemiBold
+            )
+            Text(
+                text = body,
+                style = MaterialTheme.typography.bodyMedium,
+                color = S520JColors.PureWhite.copy(alpha = 0.92f)
+            )
+        }
+        Icon(
+            imageVector = Icons.Filled.Close,
+            contentDescription = "关闭",
+            tint = S520JColors.PureWhite.copy(alpha = 0.85f),
+            modifier = Modifier
+                .clip(RoundedCornerShape(999.dp))
+                .clickable(onClick = onDismiss)
+                .padding(4.dp)
+        )
+    }
+}
+
+/** 同步状态条：离线/失败时常驻在内容区顶部，整行可点击立即重试。 */@Composable
+private fun SyncStatusBar(text: String, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(S520JColors.Sand)
+            .clickable(onClick = onClick)
+            .padding(horizontal = Dimens.PageHorizontalPadding, vertical = 8.dp)
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.labelSmall,
+            color = S520JColors.TextSecondary
+        )
     }
 }
 

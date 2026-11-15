@@ -39,7 +39,7 @@ import com.s520j.app.ui.components.SoftTextField
 import com.s520j.app.ui.theme.Dimens
 import com.s520j.app.ui.theme.S520JColors
 
-private enum class AuthTab(val label: String) { REGISTER("注册"), LOGIN("登录"), RESTORE("换机恢复") }
+private enum class AuthTab(val label: String) { REGISTER("注册"), LOGIN("登录") }
 
 @Composable
 fun AuthScreen(vm: AppViewModel) {
@@ -162,6 +162,12 @@ fun AuthScreen(vm: AppViewModel) {
                             style = MaterialTheme.typography.titleLarge,
                             color = S520JColors.TextPrimary
                         )
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            text = "登录成功后自动恢复已同步的云端数据。",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = S520JColors.TextSecondary
+                        )
                         Spacer(Modifier.height(12.dp))
                         SoftTextField(value = accountId, onValueChange = { accountId = it }, label = "账号 ID")
                         Spacer(Modifier.height(10.dp))
@@ -173,42 +179,12 @@ fun AuthScreen(vm: AppViewModel) {
                             modifier = Modifier.fillMaxWidth()
                         )
                     }
-
-                    AuthTab.RESTORE -> {
-                        Text(
-                            text = "换机恢复",
-                            style = MaterialTheme.typography.titleLarge,
-                            color = S520JColors.TextPrimary
-                        )
-                        Spacer(Modifier.height(4.dp))
-                        Text(
-                            text = "在新设备输入账号 ID 与密码，即可恢复到这台设备。",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = S520JColors.TextSecondary
-                        )
-                        Spacer(Modifier.height(12.dp))
-                        SoftTextField(value = accountId, onValueChange = { accountId = it }, label = "账号 ID")
-                        Spacer(Modifier.height(10.dp))
-                        SoftTextField(value = password, onValueChange = { password = it }, label = "密码")
-                        Spacer(Modifier.height(14.dp))
-                        PrimaryPillButton(
-                            text = "开始恢复",
-                            onClick = { vm.login(accountId, password) },
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        Spacer(Modifier.height(10.dp))
-                        Text(
-                            text = "忘记密码且没有已登录设备时，无法自助找回。",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = S520JColors.TextSecondary
-                        )
-                    }
                 }
             }
 
             Spacer(Modifier.height(16.dp))
             Text(
-                text = "本阶段使用本地 Mock 数据：账号、空间与内容先落本地库，阶段 8 起接入云端同步。",
+                text = "登录可恢复已同步的云端数据；字体、提醒和默认可见范围等本机偏好不会随账号自动恢复。",
                 style = MaterialTheme.typography.labelSmall,
                 color = S520JColors.TextSecondary
             )

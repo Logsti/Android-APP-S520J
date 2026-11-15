@@ -60,8 +60,9 @@ object SpaceStateMachine {
     /** 导出在任意状态都允许，冻结后仍可导出归档内容。 */
     fun canExport(state: BindState?): Boolean = true
 
-    /** 仅无空间或绑定失败时允许重新创建空间。 */
-    fun canCreate(state: BindState?): Boolean = state == null || state == BindState.FAILED
+    /** 未绑定、无空间或绑定失败时允许创建共同空间；已生成绑定码及之后的状态不允许。 */
+    fun canCreate(state: BindState?): Boolean =
+        state == null || state == BindState.UNBOUND || state == BindState.FAILED
 
     fun stateOf(raw: String?): BindState? = BindState.entries.firstOrNull { it.name == raw }
 }

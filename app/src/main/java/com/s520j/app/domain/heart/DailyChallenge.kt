@@ -20,6 +20,19 @@ data class ChallengeState(
 
     fun togglePartner(): ChallengeState = copy(partnerDone = !partnerDone)
 
+    /** 云端标记不可撤销：只把自己置为已完成。 */
+    fun markSelfDone(): ChallengeState = copy(selfDone = true)
+
+    /**
+     * 用云端状态覆盖双方的完成标记（云端权威），本机的「换一换」偏移保留。
+     * 跨天时先按新的一天重置，避免昨天的达成被带到今天。
+     */
+    fun mergeCloud(epochDay: Long, selfDone: Boolean, partnerDone: Boolean): ChallengeState =
+        copy(selfDone = selfDone, partnerDone = partnerDone).let { merged ->
+            if (merged.epochDay == epochDay) merged
+            else ChallengeState(epochDay, merged.offset, selfDone, partnerDone)
+        }
+
     fun encode(): String = "$epochDay|$offset|$selfDone|$partnerDone"
 
     companion object {

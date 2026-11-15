@@ -37,12 +37,13 @@ class CrossPageSyncTest {
     // ---------- 心愿状态更新 ----------
 
     @Test
-    fun `标记实现会更新状态并递增版本`() {
+    fun `标记实现会更新状态且不改版本`() {
         val wish = record(ContentModule.WISH, "去看海", extra = mapOf("状态" to "已答应", "提出人" to "小明"), version = 2)
         val updated = WishBoard.withStatus(wish, "已实现")
         assertEquals("已实现", updated.extra["状态"])
         assertEquals("小明", updated.extra["提出人"])
-        assertEquals(3, updated.version)
+        // 本地不改 version：保持服务端下发的乐观锁基线，否则推送会因基线不符被回滚。
+        assertEquals(2, updated.version)
     }
 
     @Test

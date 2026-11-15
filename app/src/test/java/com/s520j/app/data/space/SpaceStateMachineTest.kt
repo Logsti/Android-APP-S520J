@@ -147,12 +147,14 @@ class SpaceStateMachineTest {
     }
 
     @Test
-    fun createIsOnlyAllowedWithoutSpaceOrAfterFailure() {
+    fun createIsAllowedWhenUnboundOrAfterFailure() {
         assertTrue(SpaceStateMachine.canCreate(null))
+        assertTrue(SpaceStateMachine.canCreate(BindState.UNBOUND))
         assertTrue(SpaceStateMachine.canCreate(BindState.FAILED))
-        BindState.entries.filter { it != BindState.FAILED }.forEach {
-            assertFalse(SpaceStateMachine.canCreate(it))
-        }
+        // 已生成绑定码 / 等待对方 / 待确认 / 已绑定 / 已冻结都不允许再创建。
+        BindState.entries
+            .filter { it != BindState.UNBOUND && it != BindState.FAILED }
+            .forEach { assertFalse(SpaceStateMachine.canCreate(it)) }
     }
 
     @Test

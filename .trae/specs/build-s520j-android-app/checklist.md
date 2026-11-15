@@ -167,3 +167,29 @@
 - [x] 主页面进入子模块切换无整体位移、无闪烁抖动，返回后滚动位置保持
 - [ ] 同步失败可重试，空状态友好（缺同步阶段的失败重试）
 - [x] 阶段 3 APK 真机验收通过并打 Git tag `v0.3.0-stage3`（阶段 1/2 验收并入本次累计回归）
+
+## 阶段 8 修复自查（`v0.8.1-stage8-hotfix1`，2026-11-08）
+
+- [x] 云端空间链路（创建/刷新/绑定/确认/本地镜像）任何异常都不再逃逸协程（`CloudSpaceRepository` 统一守卫 + ViewModel 兜底）
+- [x] 新增 `CloudSpaceRepositoryTest` 5 条（先 RED 后 GREEN），全量 23 个测试类 / 153 条 / 0 失败
+- [x] 输入类页面统一 IME 内边距（`PageContainer` 加 `imePadding`），绑定码输入框聚焦后两次 `bringIntoView`
+- [x] APK 构建成功：`dist\S520J-v0.8.1-stage8-hotfix1-debug.apk`，versionCode 801，aapt2 badging 校验通过
+- [ ] 实机验证：创建共同空间不闪退、键盘不遮挡绑定码输入框、双机绑定成功
+
+## 阶段 8 修复自查第二轮（`v0.8.2-stage8-hotfix2`，2026-11-09）
+
+- [x] `CloudAuthRepository` 全部改用 `asObject()` 安全解析，`{"space": null}` 不再抛 `JsonNull is not a JsonObject`
+- [x] 新增 `CloudAuthRepositoryTest` 2 条（先 RED 后 GREEN），全量 24 个测试类 / 155 条 / 0 失败
+- [x] `PageContainer` 支持外部 `ScrollState`；绑定码输入框聚焦后滚动到页面底部（确定性避让键盘）
+- [x] APK 构建成功：`dist\S520J-v0.8.2-stage8-hotfix2-debug.apk`，versionCode 802
+- [ ] 实机验证：创建共同空间成功、键盘不遮挡绑定码输入框、双机绑定走通
+
+## 阶段 8 修复自查第三轮（`v0.8.3-stage8-hotfix3`，2026-11-09）
+
+- [x] 取消登录后自动创建共同空间：`resolveSpaceId()` 只查询，不调用 `space.create`
+- [x] 创建动作由用户触发：无空间走 `space.create`（使用用户填写的名称），已有单人空间走 `space.update` 改名
+- [x] 云端 `{"space": null}` 时清空本地镜像与 `cloudSpaceId`，页面回到未绑定态
+- [x] 未绑定态固定展示「共同空间未绑定」+ 创建表单 + 输入对方绑定码两个入口
+- [x] 单测 24 个测试类 / 157 条 / 0 失败（新增 4 条空间创建逻辑用例）
+- [x] APK 构建成功：`dist\S520J-v0.8.3-stage8-hotfix3-debug.apk`，versionCode 803
+- [ ] 实机验证：未绑定提示正确、创建即出绑定码、双机绑定走通

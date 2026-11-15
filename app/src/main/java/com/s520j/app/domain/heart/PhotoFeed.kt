@@ -3,6 +3,11 @@ package com.s520j.app.domain.heart
 import com.s520j.app.data.model.ContentModule
 import com.s520j.app.data.model.ContentRecord
 
+data class SharedPhoto(
+    val key: String,
+    val image: String
+)
+
 /** 拾光照片墙：分类完全由模块派生，聚合五个带图来源。 */
 object PhotoFeed {
     const val ALL = "全部"
@@ -44,6 +49,13 @@ object PhotoFeed {
     fun feed(records: List<ContentRecord>): List<ContentRecord> =
         records.filter { it.module in sources && it.mediaIds.isNotEmpty() }
             .sortedByDescending { it.createdAt }
+
+    fun sharedPhotos(records: List<ContentRecord>): List<SharedPhoto> =
+        feed(records).flatMap { record ->
+            record.mediaIds.mapIndexed { index, image ->
+                SharedPhoto(key = "${record.id}#$index", image = image)
+            }
+        }
 
     fun filter(feed: List<ContentRecord>, category: String): List<ContentRecord> =
         if (category == ALL) feed else feed.filter { categoryOf(it) == category }

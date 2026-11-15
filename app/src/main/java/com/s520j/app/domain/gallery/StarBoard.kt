@@ -7,10 +7,14 @@ import com.s520j.app.data.model.ContentRecord
 object StarBoard {
     const val SONG = "松记"
     const val JIN = "锦记"
+    const val ALL = "全部"
     const val KEY = "榜单"
     const val RATING_KEY = "星级"
 
     val boards: List<String> = listOf(SONG, JIN)
+
+    /** 五星榜子页面的三个分类：全部 + 两个榜单。 */
+    val tabs: List<String> = listOf(ALL, SONG, JIN)
 
     fun boardOf(record: ContentRecord): String =
         record.extra[KEY]?.takeIf { it in boards } ?: SONG
@@ -21,10 +25,15 @@ object StarBoard {
     fun isFiveStarDish(record: ContentRecord): Boolean =
         record.module == ContentModule.DISH && ratingOf(record) == 5
 
-    fun list(records: List<ContentRecord>, board: String): List<ContentRecord> =
-        records
-            .filter { isFiveStarDish(it) && boardOf(it) == board }
-            .sortedByDescending { it.eventDate ?: it.createdAt }
+    fun list(records: List<ContentRecord>, board: String): List<ContentRecord> {
+        val fiveStars = records.filter { isFiveStarDish(it) }
+        return when (board) {
+            ALL -> fiveStars.sortedByDescending { it.eventDate ?: it.createdAt }
+            else -> fiveStars
+                .filter { boardOf(it) == board }
+                .sortedByDescending { it.eventDate ?: it.createdAt }
+        }
+    }
 
     fun count(records: List<ContentRecord>, board: String): Int = list(records, board).size
 }

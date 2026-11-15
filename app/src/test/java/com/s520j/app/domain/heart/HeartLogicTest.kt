@@ -12,7 +12,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** 阶段 4 心动页纯逻辑：今日挑战、心愿三态、日历网格、碰碰你 DIY、快速记录照片规则。 */
+/** 阶段 4 心动页纯逻辑：今日挑战、心愿状态、日历网格、碰碰你 DIY、快速记录照片规则。 */
 class HeartLogicTest {
 
     // ---------- 今日心动挑战 ----------
@@ -89,16 +89,18 @@ class HeartLogicTest {
         assertEquals("待回应", WishBoard.statusOf(wish("随便写")))
         assertEquals("已答应", WishBoard.statusOf(wish("已答应")))
         assertEquals("已实现", WishBoard.statusOf(wish("已实现")))
-        assertEquals(listOf("待回应", "已答应", "已实现"), WishBoard.statuses)
+        assertEquals("被拒绝", WishBoard.statusOf(wish("被拒绝")))
+        assertEquals(listOf("待回应", "已答应", "已实现", "被拒绝"), WishBoard.statuses)
     }
 
     @Test
-    fun `心愿按三态分组且始终返回三个分组`() {
-        val records = listOf(wish("待回应"), wish("已实现"), wish("已答应"), wish("已实现"))
+    fun `心愿按状态分组且始终返回四个分组`() {
+        val records = listOf(wish("待回应"), wish("已实现"), wish("已答应"), wish("被拒绝"), wish("已实现"))
         val grouped = WishBoard.group(records)
-        assertEquals(setOf("待回应", "已答应", "已实现"), grouped.keys)
+        assertEquals(setOf("待回应", "已答应", "已实现", "被拒绝"), grouped.keys)
         assertEquals(1, grouped["待回应"]?.size)
         assertEquals(1, grouped["已答应"]?.size)
+        assertEquals(1, grouped["被拒绝"]?.size)
         assertEquals(listOf("已实现", "已实现"), grouped["已实现"]?.map { it.title })
         assertTrue(WishBoard.group(emptyList()).values.all { it.isEmpty() })
     }

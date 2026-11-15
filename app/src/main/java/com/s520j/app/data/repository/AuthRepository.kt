@@ -50,7 +50,12 @@ class AuthRepository @Inject constructor(
 ) {
     private val userDao get() = db.userDao()
 
-    suspend fun register(accountIdRaw: String, nickname: String, recoveryCode: String): AuthResult {
+    suspend fun register(
+        accountIdRaw: String,
+        nickname: String,
+        recoveryCode: String,
+        cloudUserId: String? = null
+    ): AuthResult {
         val accountId = accountIdRaw.trim().uppercase()
         AccountIdRule.validate(accountId)?.let { return AuthResult.Failure(it) }
         val name = nickname.trim()
@@ -62,7 +67,7 @@ class AuthRepository @Inject constructor(
 
         val salt = randomSalt()
         val entity = UserEntity(
-            id = "user-$accountId",
+            id = cloudUserId ?: "user-$accountId",
             nickname = name,
             accountId = accountId,
             recoverySalt = salt,
@@ -70,6 +75,46 @@ class AuthRepository @Inject constructor(
             avatar = null,
             coupleStartAt = CoupleStartDate.FIXED_COUPLE_START_MS,
             createdAt = System.currentTimeMillis()
+        )
+        userDao.upsert(entity)
+        prefs.saveSession(
+            SessionProfile(
+                userId = entity.id,
+                nickname = entity.nickname,
+                accountId = entity.accountId,
+                partnerNickname = "TA",
+                coupleStartAt = entity.coupleStartAt,
+                loggedIn = true
+            )
+        )
+        return AuthResult.Success(accountId, name)
+    }
+
+    /**
+     * 云端认证成功后落地本机账号：账号 ID 与密码以云端为准，
+     * 保证断网时仍可用同密码本机登录，并以云端 userId 关联内容。
+     */
+    suspend fun adoptCloudAccount(
+        accountIdRaw: String,
+        nickname: String,
+        recoveryCode: String,
+        cloudUserId: String
+    ): AuthResult {
+        val accountId = accountIdRaw.trim().uppercase()
+        AccountIdRule.validate(accountId)?.let { return AuthResult.Failure(it) }
+        RecoveryCodeRule.validate(recoveryCode)?.let { return AuthResult.Failure(it) }
+        val name = nickname.trim().ifEmpty { accountId }
+        val existing = userDao.findByAccountId(accountId)
+        val salt = randomSalt()
+        val entity = UserEntity(
+            id = cloudUserId.ifBlank { existing?.id ?: "user-$accountId" },
+            nickname = name,
+            accountId = accountId,
+            recoverySalt = salt,
+            recoveryHash = hash(recoveryCode, salt),
+            avatar = existing?.avatar,
+            coupleStartAt = existing?.coupleStartAt ?: CoupleStartDate.FIXED_COUPLE_START_MS,
+            createdAt = existing?.createdAt ?: System.currentTimeMillis()
         )
         userDao.upsert(entity)
         prefs.saveSession(

@@ -21,8 +21,10 @@ import androidx.compose.material.icons.filled.Balance
 import androidx.compose.material.icons.filled.Cake
 import androidx.compose.material.icons.filled.CardGiftcard
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Handshake
+import androidx.compose.material.icons.filled.MailOutline
 import androidx.compose.material.icons.filled.ThumbDown
 import androidx.compose.material.icons.filled.ThumbUp
 import androidx.compose.material3.Icon
@@ -68,7 +70,9 @@ private val tacitEntries = listOf(
     TacitEntry(ContentModule.LIKE, Icons.Filled.ThumbUp, "TA 的喜欢"),
     TacitEntry(ContentModule.DISLIKE, Icons.Filled.ThumbDown, "TA 不喜欢"),
     TacitEntry(ContentModule.NOTE, Icons.Filled.Edit, "我们的笔记"),
-    TacitEntry(ContentModule.ROMANTIC_MOMENT, Icons.Filled.Favorite, "浪漫时刻")
+    TacitEntry(ContentModule.ROMANTIC_MOMENT, Icons.Filled.Favorite, "浪漫时刻"),
+    TacitEntry(ContentModule.JOT, Icons.Filled.EditNote, "随手记"),
+    TacitEntry(ContentModule.LETTER, Icons.Filled.MailOutline, "一封情书")
 )
 
 @Composable
@@ -92,7 +96,7 @@ fun TacitScreen(
         )
         Spacer(Modifier.height(6.dp))
         Text(
-            text = "八个角落，装下你们的默契。",
+            text = "十个角落，装下你们的默契。",
             style = MaterialTheme.typography.bodyMedium,
             color = S520JColors.TextSecondary
         )

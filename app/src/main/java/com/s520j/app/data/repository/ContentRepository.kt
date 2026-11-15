@@ -82,7 +82,7 @@ class ContentRepository @Inject constructor(
 private object SeedData {
     fun records(now: Long, day: Long, ownerId: String, ownerName: String): List<ContentRecord> = listOf(
         rec(ContentModule.WISH, "去看一次海", "想和你一起在海边看日出。", now, ownerId, ownerName,
-            eventDate = now + day * 20, extra = mapOf("提出人" to ownerName, "状态" to "待回应")),
+            eventDate = now + day * 20, extra = mapOf("提出人" to ownerId, "状态" to "待回应")),
         rec(ContentModule.WISH, "学会做提拉米苏", "一起做一次甜点。", now - day * 2, ownerId, ownerName,
             eventDate = now + day * 9, extra = mapOf("提出人" to "TA", "状态" to "已答应")),
         rec(ContentModule.CALENDAR_EVENT, "一起去看展", "周末下午，美术馆新展。", now, ownerId, ownerName,

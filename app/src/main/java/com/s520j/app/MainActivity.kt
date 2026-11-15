@@ -24,11 +24,14 @@ class MainActivity : ComponentActivity() {
             val vm: AppViewModel by viewModels()
             val fontScale by vm.fontScale.collectAsState()
             val session by vm.session.collectAsState()
+            val localResetReady by vm.localResetReady.collectAsState()
 
             LaunchedEffect(Unit) { vm.seedIfNeeded() }
 
             S520JTheme(fontScale = fontScale) {
-                if (session.loggedIn) MainShell(vm) else AuthScreen(vm)
+                if (localResetReady) {
+                    if (session.loggedIn) MainShell(vm) else AuthScreen(vm)
+                }
             }
         }
     }

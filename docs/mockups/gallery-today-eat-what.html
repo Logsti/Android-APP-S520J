@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>拾光 · 今天吃啥</title>
+<style>
+  :root{
+    --bg:#F8F6EE;
+    --surface:#FFFEFA;
+    --primary:#7D9676;
+    --primary-soft:#D9E5D2;
+    --sand:#EEE4CE;
+    --text-primary:#344033;
+    --text-secondary:#858778;
+    --divider:#E8E2D5;
+    --accent-pink:#F2E2D9;
+    --warm-brown:#6B4E3D;
+    --deep-green:#4F6B45;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{
+    background:#E9E4D6;
+    font-family:"PingFang SC","Microsoft YaHei",-apple-system,sans-serif;
+    display:flex;justify-content:center;padding:24px 0;
+  }
+  .phone{
+    width:390px;background:var(--bg);
+    border-radius:40px;overflow:hidden;
+    box-shadow:0 20px 60px rgba(0,0,0,.18);
+    position:relative;
+  }
+  .content{padding:28px 22px 40px;}
+
+  .hero-title{
+    font-size:30px;line-height:1.3;color:var(--text-primary);
+    font-weight:700;letter-spacing:.5px;
+  }
+  .hero-sub{margin-top:6px;font-size:14px;color:var(--text-secondary);}
+
+  /* ===== 今天吃啥 入口卡 ===== */
+  .eat-card{
+    margin-top:18px;
+    border-radius:22px;
+    padding:18px 20px;
+    background:linear-gradient(135deg,#F5D9C4 0%,#EFC9A8 100%);
+    display:flex;align-items:center;gap:14px;
+    box-shadow:0 6px 18px rgba(107,78,61,.12);
+    cursor:pointer;
+    position:relative;overflow:hidden;
+  }
+  .eat-card::after{
+    content:"";position:absolute;right:-20px;bottom:-30px;
+    width:120px;height:120px;border-radius:50%;
+    background:rgba(255,255,255,.18);
+  }
+  .eat-icon{
+    width:48px;height:48px;border-radius:16px;
+    background:rgba(255,255,255,.55);
+    display:flex;align-items:center;justify-content:center;
+    font-size:26px;flex-shrink:0;
+  }
+  .eat-text{flex:1;}
+  .eat-title{font-size:20px;font-weight:700;color:var(--warm-brown);}
+  .eat-sub{font-size:12px;color:#7a5a45;margin-top:2px;}
+  .eat-dice{
+    width:40px;height:40px;border-radius:50%;
+    background:rgba(255,255,255,.7);
+    display:flex;align-items:center;justify-content:center;
+    font-size:20px;flex-shrink:0;
+  }
+
+  .section-gap{height:22px;}
+
+  /* 统计卡 */
+  .stat-row{display:flex;gap:12px;}
+  .stat-card{
+    flex:1;background:var(--surface);border-radius:18px;padding:16px 14px;
+    box-shadow:0 2px 8px rgba(0,0,0,.04);
+    border:1px solid rgba(232,226,213,.8);
+    cursor:pointer;
+  }
+  .stat-num{font-size:26px;font-weight:700;color:var(--primary);}
+  .stat-label{font-size:12px;color:var(--text-secondary);margin-top:4px;}
+
+  .gap-sm{height:12px;}
+
+  /* section header */
+  .sec-header{display:flex;align-items:center;margin-top:4px;}
+  .sec-title{font-size:18px;font-weight:700;color:var(--text-primary);}
+  .sec-sub{font-size:12px;color:var(--text-secondary);margin-left:8px;flex:1;}
+  .sec-action{font-size:12px;color:var(--text-secondary);}
+
+  .chips{display:flex;gap:8px;overflow-x:auto;margin-top:10px;padding-bottom:4px;}
+  .chip{
+    padding:7px 12px;border-radius:999px;font-size:12px;white-space:nowrap;
+    background:var(--surface);color:var(--text-secondary);
+  }
+  .chip.active{background:var(--primary);color:#fff;}
+
+  .search{
+    margin-top:12px;background:var(--surface);border-radius:14px;padding:12px 14px;
+    font-size:13px;color:var(--text-secondary);border:1px solid var(--divider);
+  }
+
+  .photo-grid{display:flex;gap:12px;margin-top:12px;}
+  .photo{
+    flex:1;aspect-ratio:1;border-radius:18px;background:var(--sand);
+    display:flex;align-items:center;justify-content:center;color:var(--text-secondary);font-size:12px;
+  }
+
+  /* 随机结果弹窗 */
+  .modal-mask{
+    position:absolute;inset:0;background:rgba(0,0,0,.45);
+    display:flex;align-items:flex-end;opacity:0;pointer-events:none;
+    transition:opacity .25s;
+  }
+  .modal-mask.show{opacity:1;pointer-events:auto;}
+  .modal{
+    width:100%;background:var(--bg);border-radius:28px 28px 0 0;padding:24px 22px 32px;
+    transform:translateY(100%);transition:transform .3s cubic-bezier(.2,.8,.2,1);
+  }
+  .modal-mask.show .modal{transform:translateY(0);}
+  .modal-tag{
+    display:inline-block;background:var(--primary-soft);color:var(--primary);
+    font-size:11px;padding:4px 10px;border-radius:999px;margin-bottom:10px;
+  }
+  .modal-dish{font-size:26px;font-weight:700;color:var(--text-primary);}
+  .modal-rating{margin-top:8px;color:#E0A800;font-size:18px;letter-spacing:2px;}
+  .modal-thumb{
+    margin-top:14px;width:100%;height:150px;border-radius:18px;background:var(--sand);
+    display:flex;align-items:center;justify-content:center;color:var(--text-secondary);
+  }
+  .modal-actions{display:flex;gap:12px;margin-top:18px;}
+  .btn{
+    flex:1;padding:14px;border-radius:999px;text-align:center;font-size:14px;font-weight:600;
+    cursor:pointer;border:none;
+  }
+  .btn-primary{background:var(--primary);color:#fff;}
+  .btn-ghost{background:var(--surface);color:var(--text-primary);border:1px solid var(--divider);}
+
+  .hint{margin-top:10px;font-size:12px;color:var(--text-secondary);text-align:center;}
+</style>
+</head>
+<body>
+  <div class="phone">
+    <div class="content">
+
+      <div class="hero-title">拾起生活里的微光。</div>
+      <div class="hero-sub">把一起走过的日子，慢慢收好。</div>
+
+      <!-- 今天吃啥 入口（替换原"今日"日期卡） -->
+      <div class="eat-card" id="eatCard">
+        <div class="eat-icon">🍽️</div>
+        <div class="eat-text">
+          <div class="eat-title">今天吃啥</div>
+          <div class="eat-sub">点一下，替你随机选一道菜</div>
+        </div>
+        <div class="eat-dice">🎲</div>
+      </div>
+
+      <div class="section-gap"></div>
+
+      <div class="stat-row">
+        <div class="stat-card"><div class="stat-num">42</div><div class="stat-label">共同照片</div></div>
+        <div class="stat-card"><div class="stat-num">12</div><div class="stat-label">一起做过的菜</div></div>
+      </div>
+      <div class="gap-sm"></div>
+      <div class="stat-row">
+        <div class="stat-card"><div class="stat-num">8</div><div class="stat-label">一起去过的店</div></div>
+        <div class="stat-card"><div class="stat-num">6</div><div class="stat-label">一起去过的城市</div></div>
+      </div>
+
+      <div class="section-gap"></div>
+
+      <div class="sec-header">
+        <div class="sec-title">照片墙</div>
+        <div class="sec-sub">两张一组的日常</div>
+        <div class="sec-action">查看全部</div>
+      </div>
+      <div class="chips">
+        <div class="chip active">全部</div>
+        <div class="chip">做饭</div>
+        <div class="chip">探店</div>
+        <div class="chip">旅行</div>
+        <div class="chip">日常</div>
+        <div class="chip">浪漫时刻</div>
+      </div>
+      <div class="search">搜索照片</div>
+      <div class="photo-grid">
+        <div class="photo">照片 1</div>
+        <div class="photo">照片 2</div>
+      </div>
+
+    </div>
+
+    <!-- 随机结果弹窗 -->
+    <div class="modal-mask" id="modal">
+      <div class="modal">
+        <span class="modal-tag">今天就吃它</span>
+        <div class="modal-dish" id="dishName">番茄牛腩</div>
+        <div class="modal-rating">★★★★★</div>
+        <div class="modal-thumb">菜品图片</div>
+        <div class="modal-actions">
+          <div class="btn btn-ghost" id="reroll">换一个</div>
+          <div class="btn btn-primary" id="confirm">就它了</div>
+        </div>
+        <div class="hint">从「一起做过的菜」中随机抽取</div>
+      </div>
+    </div>
+  </div>
+
+<script>
+  const dishes = ["番茄牛腩","提拉米苏","糖醋排骨","蒜香鸡翅","葱油拌面","红烧肉","麻婆豆腐","可乐鸡翅"];
+  const eatCard = document.getElementById('eatCard');
+  const modal = document.getElementById('modal');
+  const dishName = document.getElementById('dishName');
+  document.getElementById('reroll').onclick = ()=>{
+    dishName.textContent = dishes[Math.floor(Math.random()*dishes.length)];
+  };
+  eatCard.onclick = ()=>{
+    dishName.textContent = dishes[Math.floor(Math.random()*dishes.length)];
+    modal.classList.add('show');
+  };
+  modal.onclick = (e)=>{ if(e.target===modal) modal.classList.remove('show'); };
+  document.getElementById('confirm').onclick = ()=> modal.classList.remove('show');
+</script>
+</body>
+</html>

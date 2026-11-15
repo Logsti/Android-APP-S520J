@@ -1,5 +1,6 @@
 package com.s520j.app.data.local
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
@@ -52,7 +53,9 @@ data class SpaceEntity(
     val bindRequestedBy: String? = null,
     val unbindRequestedBy: String? = null,
     val ownerConfirmedAt: Long? = null,
-    val partnerConfirmedAt: Long? = null
+    val partnerConfirmedAt: Long? = null,
+    /** 云端绑定申请 id；跨设备确认时使用。 */
+    val bindRequestId: String? = null
 )
 
 @Entity(tableName = "space_members", primaryKeys = ["spaceId", "userId"])
@@ -75,6 +78,7 @@ data class ContentEntity(
     val content: String,
     val eventDate: Long?,
     val mediaIds: String,
+    @ColumnInfo(defaultValue = "") val mediaRefs: String = "",
     val extraJson: String,
     val createdAt: Long,
     val updatedAt: Long,
@@ -89,6 +93,17 @@ data class OutboxEntity(
     val op: String,
     val createdAt: Long,
     val attempts: Int = 0
+)
+
+/** 云端与本地版本分叉时的双方快照，保留 30 天供用户选择保留哪一份。 */
+@Entity(tableName = "sync_conflicts")
+data class SyncConflictEntity(
+    @PrimaryKey val id: String,
+    val entityId: String,
+    val serverJson: String,
+    val localJson: String = "",
+    val createdAt: Long,
+    val expireAt: Long
 )
 
 @Entity(tableName = "notifications")
@@ -142,6 +157,7 @@ fun ContentEntity.toRecord(): ContentRecord = ContentRecord(
     content = content,
     eventDate = eventDate,
     mediaIds = FieldCodec.decodeList(mediaIds),
+    mediaRefs = FieldCodec.decodeList(mediaRefs),
     extra = FieldCodec.decodeMap(extraJson),
     createdAt = createdAt,
     updatedAt = updatedAt,
@@ -160,6 +176,7 @@ fun ContentRecord.toEntity(): ContentEntity = ContentEntity(
     content = content,
     eventDate = eventDate,
     mediaIds = FieldCodec.encodeList(mediaIds),
+    mediaRefs = FieldCodec.encodeList(mediaRefs),
     extraJson = FieldCodec.encodeMap(extra),
     createdAt = createdAt,
     updatedAt = updatedAt,

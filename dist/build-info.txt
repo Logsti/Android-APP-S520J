@@ -1,8 +1,7 @@
-﻿tag=v6.4.0-stage7
+﻿tag=v1.0.0
 variant=debug
-versionCode=6400
-builtAt=2026-11-08 15:11:34
-apk=S520J-v6.4.0-stage7-debug.apk
-sizeBytes=21780447
-jdk=C:\Program Files\Eclipse Adoptium\jdk-17.0.21.9-hotspot\
-androidSdk=C:\Android\Sdk
+versionCode=1001
+builtAt=2026-11-12 23:31:28
+apk=S520J-v1.0.0-debug.apk
+sizeBytes=21828221
+cloud=003+004 applied; auth/space/content/sync/media deployed

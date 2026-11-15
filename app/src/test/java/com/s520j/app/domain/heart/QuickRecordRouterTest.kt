@@ -18,7 +18,8 @@ class QuickRecordRouterTest {
             "探店" to ContentModule.SHOP,
             "旅行" to ContentModule.TRAVEL,
             "浪漫" to ContentModule.ROMANTIC_MOMENT,
-            "浪漫时刻" to ContentModule.ROMANTIC_MOMENT
+            "浪漫时刻" to ContentModule.ROMANTIC_MOMENT,
+            "随手记" to ContentModule.JOT
         )
         cases.forEach { (type, expected) ->
             val routed = QuickRecordRouter.route(
@@ -78,6 +79,13 @@ class QuickRecordRouterTest {
         assertEquals("recent-1", migrated[1].id)
         assertEquals(ContentModule.PHOTO, migrated[2].module)
         assertEquals("photo-1", migrated[2].id)
+    }
+
+    @Test
+    fun `随手记迁移到默契页模块`() {
+        val migrated = QuickRecordRouter.migrate(listOf(quickRecord(type = "随手记")))
+        assertEquals(ContentModule.JOT, migrated.single().module)
+        assertEquals("rec-随手记", migrated.single().id)
     }
 
     @Test

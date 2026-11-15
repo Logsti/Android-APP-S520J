@@ -47,10 +47,12 @@ import com.s520j.app.data.model.Visibility
 import com.s520j.app.domain.gallery.StarBoard
 import com.s520j.app.domain.heart.WishBoard
 import com.s520j.app.domain.tacit.ImportantDay
+import com.s520j.app.domain.tacit.LetterBoard
 import com.s520j.app.domain.tacit.Promise
 import com.s520j.app.domain.tacit.RelationshipRule
 import com.s520j.app.ui.AppViewModel
 import com.s520j.app.ui.components.BackBar
+import com.s520j.app.ui.components.ImageViewerDialog
 import com.s520j.app.ui.components.PageContainer
 import com.s520j.app.ui.components.PrimaryPillButton
 import com.s520j.app.ui.components.SoftCard
@@ -74,6 +76,7 @@ fun ModuleEditScreen(
     val records by flow.collectAsState(initial = emptyList())
     val isReadOnly by vm.isReadOnly.collectAsState()
     val preferredVisibility by vm.defaultVisibility.collectAsState()
+    val session by vm.session.collectAsState()
     val existing = remember(recordId, records) { records.firstOrNull { it.id == recordId } }
 
     // 日历入口带入的日期。
@@ -97,8 +100,10 @@ fun ModuleEditScreen(
     var wishStatus by remember { mutableStateOf(WishBoard.PENDING) }
     var repeat by remember { mutableStateOf(false) }
     var promiseStatus by remember { mutableStateOf(Promise.IN_PROGRESS) }
+    var letterDirection by remember { mutableStateOf(LetterBoard.TO) }
     val mediaUris = remember { mutableStateListOf<String>() }
     var loaded by remember { mutableStateOf(false) }
+    var viewerUri by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(existing, preferredVisibility) {
         if (!loaded && existing != null) {
@@ -112,12 +117,13 @@ fun ModuleEditScreen(
             wishStatus = WishBoard.statusOf(existing)
             repeat = existing.extra[ImportantDay.REPEAT_KEY] == ImportantDay.REPEAT_YES
             promiseStatus = Promise.status(existing)
+            letterDirection = LetterBoard.directionForSave(existing, letterDirection)
             mediaUris.clear()
             mediaUris.addAll(existing.mediaIds)
             loaded = true
         } else if (existing == null && !visibilityTouched) {
-            // 新记录沿用「隐私与权限」里的默认范围，默认仅自己可见。
-            visibility = preferredVisibility
+            // 情书默认共同可见；其它新记录沿用「隐私与权限」里的默认范围。
+            visibility = if (module == ContentModule.LETTER) module.defaultVisibility else preferredVisibility
         }
     }
 
@@ -177,6 +183,42 @@ fun ModuleEditScreen(
                 singleLine = false,
                 minLines = 3
             )
+        }
+
+        if (module == ContentModule.LETTER) {
+            Spacer(Modifier.height(Dimens.CardGap))
+            SoftCard {
+                Text("信件方向", style = MaterialTheme.typography.titleMedium, color = S520JColors.TextPrimary)
+                Spacer(Modifier.height(8.dp))
+                if (existing == null) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        listOf(LetterBoard.TO, LetterBoard.FROM).forEach { option ->
+                            val selected = letterDirection == option
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(999.dp))
+                                    .background(if (selected) S520JColors.Primary else S520JColors.Background)
+                                    .clickable { letterDirection = option }
+                                    .padding(horizontal = 14.dp, vertical = 8.dp)
+                            ) {
+                                Text(
+                                    text = LetterBoard.filterLabel(option, session.partnerNickname),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = if (selected) Color.White else S520JColors.TextSecondary
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    TagPill(LetterBoard.directionLabel(existing, session.userId, session.partnerNickname))
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        text = "保留原创建者与信件方向，修改内容不会翻转。",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = S520JColors.TextSecondary
+                    )
+                }
+            }
         }
 
         Spacer(Modifier.height(Dimens.CardGap))
@@ -299,7 +341,8 @@ fun ModuleEditScreen(
                                 contentDescription = null,
                                 modifier = Modifier
                                     .size(64.dp)
-                                    .clip(RoundedCornerShape(12.dp)),
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .clickable { viewerUri = uri },
                                 contentScale = ContentScale.Crop
                             )
                         }
@@ -450,14 +493,20 @@ fun ModuleEditScreen(
                             put(RelationshipRule.KEY, if (accepted) RelationshipRule.ACKNOWLEDGED else RelationshipRule.PENDING)
                         }
                         if (module == ContentModule.WISH) {
+                            // 提出人统一由 saveRecord 补写当前 userId，旧值原样保留。
                             put("状态", wishStatus)
-                            put("提出人", existing?.extra?.get("提出人") ?: "我")
                         }
                         if (module == ContentModule.DISH) {
                             put(StarBoard.KEY, starBoard)
                         }
                         if (module == ContentModule.IMPORTANT_DAY) {
                             put(ImportantDay.REPEAT_KEY, if (repeat) ImportantDay.REPEAT_YES else "否")
+                        }
+                        if (module == ContentModule.LETTER) {
+                            put(
+                                LetterBoard.KEY_DIRECTION,
+                                LetterBoard.directionForSave(existing, letterDirection)
+                            )
                         }
                         if (module == ContentModule.PROMISE) {
                             put(Promise.STATUS_KEY, promiseStatus)
@@ -476,6 +525,10 @@ fun ModuleEditScreen(
         )
 
         Spacer(Modifier.height(40.dp))
+    }
+
+    viewerUri?.let { uri ->
+        ImageViewerDialog(model = uri, onDismiss = { viewerUri = null })
     }
 }
 

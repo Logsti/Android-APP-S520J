@@ -143,7 +143,7 @@ fun NotificationCenterScreen(vm: AppViewModel, onBack: () -> Unit) {
             )
             Spacer(Modifier.height(4.dp))
             Text(
-                text = "本应用不使用系统推送与本地通知。打开 APP、切回前台或手动同步时，会拉取最新的共同动态。",
+                text = "碰碰你、挑战达成与今日提醒继续保留。对方的心愿和共同空间动态会在联网同步后触达；登录、权限或持续同步异常也会在此提示。系统通知需允许通知权限，未授权时仍保留应用内未读；已读状态仅保存在本机。",
                 style = MaterialTheme.typography.bodyMedium,
                 color = S520JColors.TextSecondary
             )

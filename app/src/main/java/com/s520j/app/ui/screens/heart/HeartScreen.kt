@@ -3,6 +3,7 @@ package com.s520j.app.ui.screens.heart
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -20,6 +21,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -28,8 +30,10 @@ import androidx.compose.material.icons.filled.WavingHand
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
+import androidx.compose.material.icons.outlined.EditNote
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.outlined.Luggage
+import androidx.compose.material.icons.outlined.MailOutline
 import androidx.compose.material.icons.outlined.PhotoCamera
 import androidx.compose.material.icons.outlined.Restaurant
 import androidx.compose.material.icons.outlined.SentimentSatisfied
@@ -43,10 +47,12 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -62,6 +68,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.s520j.app.data.model.ContentModule
 import com.s520j.app.data.model.ContentRecord
+import com.s520j.app.data.sync.SyncPhase
 import com.s520j.app.domain.heart.CalendarSupport
 import com.s520j.app.domain.heart.PokeCatalog
 import com.s520j.app.domain.heart.QuickRecordTypes
@@ -118,6 +125,10 @@ fun HeartScreen(
 
     var month by remember { mutableStateOf(YearMonth.now()) }
     var selectedDate by remember { mutableStateOf(today()) }
+    val syncState by vm.syncState.collectAsState()
+
+    // 进入页面时补一次同步（内部受 20 秒节流保护）。
+    LaunchedEffect(Unit) { vm.syncOnEnter() }
 
     var showGreetingDialog by remember { mutableStateOf(false) }
     var greetingDraft by remember { mutableStateOf(greeting) }
@@ -125,12 +136,15 @@ fun HeartScreen(
     val eventCounts = remember(events) { CalendarSupport.eventCounts(events) }
     val dayEvents = remember(events, selectedDate) { CalendarSupport.eventsOn(events, selectedDate) }
 
-    PageContainer {
+    PageContainer(
+        onRefresh = vm::syncNow,
+        refreshing = syncState.phase == SyncPhase.SYNCING
+    ) {
         Spacer(Modifier.height(26.dp))
 
         GreetingHero(
-            nickname = session.nickname,
-            partner = session.partnerNickname,
+            nickname = session.nickname.ifBlank { "你" },
+            partner = session.partnerNickname.ifBlank { "TA" },
             days = daysBetween(session.coupleStartAt),
             greeting = greeting,
             onEditGreeting = {
@@ -144,8 +158,7 @@ fun HeartScreen(
         ChallengeSection(
             challenge = challenge,
             onRotate = { vm.rotateChallenge() },
-            onToggleSelf = { vm.toggleChallengeSelf() },
-            onTogglePartner = { vm.toggleChallengePartner() }
+            onToggleSelf = { vm.toggleChallengeSelf() }
         )
 
         Spacer(Modifier.height(sectionGap))
@@ -156,8 +169,11 @@ fun HeartScreen(
 
         WishSection(
             wishes = wishes,
+            selfId = session.userId,
             partner = session.partnerNickname.ifBlank { "TA" },
             onOpenWish = { onOpenRecord(ContentModule.WISH, it.id) },
+            onAccept = { vm.acceptWish(it) },
+            onReject = { vm.rejectWish(it) },
             onRealize = { vm.setWishStatus(it, WishBoard.REALIZED) },
             onSeeAll = { onOpenModule(ContentModule.WISH, null) }
         )
@@ -319,9 +335,12 @@ private fun GreetingHero(
                     text = line,
                     fontFamily = FontFamily.Serif,
                     fontWeight = FontWeight.Bold,
-                    fontSize = if (compact) 26.sp else 30.sp,
-                    lineHeight = if (compact) 34.sp else 40.sp,
-                    color = S520JColors.PureWhite
+                    fontSize = if (compact) 18.sp else 20.sp,
+                    lineHeight = if (compact) 24.sp else 26.sp,
+                    color = S520JColors.PureWhite,
+                    maxLines = 1,
+                    softWrap = false,
+                    overflow = TextOverflow.Ellipsis
                 )
                 Spacer(Modifier.height(14.dp))
                 Text(
@@ -366,8 +385,7 @@ private fun GreetingHero(
 private fun ChallengeSection(
     challenge: com.s520j.app.domain.heart.ChallengeState,
     onRotate: () -> Unit,
-    onToggleSelf: () -> Unit,
-    onTogglePartner: () -> Unit
+    onToggleSelf: () -> Unit
 ) {
     HeartSectionHeader(
         title = "今日心动挑战",
@@ -425,6 +443,7 @@ private fun ChallengeSection(
             Spacer(Modifier.height(18.dp))
             Button(
                 onClick = onToggleSelf,
+                enabled = !challenge.selfDone,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(46.dp),
@@ -456,40 +475,35 @@ private fun ChallengeSection(
                     text = when {
                         challenge.bothDone -> "今天的心动挑战已经完成"
                         challenge.partnerDone -> "TA 已经标记完成，等你啦～"
-                        else -> "没完成也没关系，明天再换一个～"
+                        challenge.selfDone -> "已标记完成，等 TA 一起完成"
+                        else -> "各自标记，两个人都完成就算达成～"
                     },
                     fontSize = 12.sp,
                     lineHeight = 18.sp,
                     textAlign = TextAlign.Center,
                     color = if (challenge.bothDone) S520JColors.DeepGreen else S520JColors.TextSecondary
                 )
-                if (!challenge.bothDone) {
-                    Text(
-                        text = if (challenge.partnerDone) " · 撤销 TA" else " · 替 TA 标记",
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(999.dp))
-                            .clickable(onClick = onTogglePartner)
-                            .padding(horizontal = 2.dp, vertical = 4.dp),
-                        fontSize = 11.sp,
-                        color = S520JColors.DeepGreen.copy(alpha = 0.85f)
-                    )
-                }
             }
         }
     }
 }
 
-/** 参考图 3：三态切换 + 竖向全量卡片；每个心愿独立一张卡。 */
+/** 参考图 3：五个视角胶囊（横向可滚动）+ 竖向全量卡片；每个心愿独立一张卡。 */
 @Composable
 private fun WishSection(
     wishes: List<ContentRecord>,
+    selfId: String,
     partner: String,
     onOpenWish: (ContentRecord) -> Unit,
+    onAccept: (ContentRecord) -> Unit,
+    onReject: (ContentRecord) -> Unit,
     onRealize: (ContentRecord) -> Unit,
     onSeeAll: () -> Unit
 ) {
-    val groups = remember(wishes) { WishBoard.group(wishes) }
-    var selectedIndex by remember { mutableStateOf(0) }
+    val groups = remember(wishes, selfId) { WishBoard.groupByView(wishes, selfId) }
+    // 用户手动选择后保持不动；未选择时按「待我回应 → 待对方回应 → 已答应」兜底。
+    var picked by rememberSaveable { mutableStateOf<String?>(null) }
+    val view = picked ?: WishBoard.defaultView(groups)
 
     HeartSectionHeader(
         title = "心愿待实现",
@@ -507,22 +521,25 @@ private fun WishSection(
     )
     Spacer(Modifier.height(12.dp))
 
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-        WishBoard.statuses.forEachIndexed { index, status ->
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        WishBoard.views.forEach { item ->
             WishStatusTab(
-                text = "$status ${groups[status].orEmpty().size}",
-                selected = selectedIndex == index,
-                onClick = { selectedIndex = index },
-                modifier = Modifier.weight(1f)
+                text = "$item ${groups[item].orEmpty().size}",
+                selected = view == item,
+                onClick = { picked = item }
             )
         }
     }
     Spacer(Modifier.height(12.dp))
 
-    val status = WishBoard.statuses[selectedIndex]
-    val list = groups[status].orEmpty()
+    val list = groups[view].orEmpty()
     if (list.isEmpty()) {
-        WishEmptyCard(status = status, onSeeAll = onSeeAll)
+        WishEmptyCard(view = view, onSeeAll = onSeeAll)
     } else {
         BoxWithConstraints {
             val cardWidth = maxWidth * 0.62f
@@ -533,8 +550,11 @@ private fun WishSection(
                 items(list, key = { it.id }) { wish ->
                     WishCard(
                         wish = wish,
+                        selfId = selfId,
                         partner = partner,
                         onOpen = { onOpenWish(wish) },
+                        onAccept = { onAccept(wish) },
+                        onReject = { onReject(wish) },
                         onRealize = { onRealize(wish) },
                         modifier = Modifier
                             .width(cardWidth)
@@ -558,7 +578,7 @@ private fun WishStatusTab(
             .clip(RoundedCornerShape(999.dp))
             .background(if (selected) S520JColors.PrimarySoft else S520JColors.PureWhite)
             .clickable { onClick() }
-            .padding(vertical = 8.dp),
+            .padding(horizontal = 14.dp, vertical = 8.dp),
         contentAlignment = Alignment.Center
     ) {
         Text(
@@ -573,16 +593,27 @@ private fun WishStatusTab(
 @Composable
 private fun WishCard(
     wish: ContentRecord,
+    selfId: String,
     partner: String,
     onOpen: () -> Unit,
+    onAccept: () -> Unit,
+    onReject: () -> Unit,
     onRealize: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val status = WishBoard.statusOf(wish)
+    val view = WishBoard.viewOf(wish, selfId)
     val dateLabel = (wish.eventDate ?: wish.createdAt).toMonthTitle()
-    val proposer = wish.extra["提出人"]?.takeIf { it.isNotBlank() } ?: "我"
-    val accepter = wish.extra["答应人"]?.takeIf { it.isNotBlank() } ?: partner
-    val subtitle = if (status == WishBoard.PENDING) "等待 $partner 回应" else "$proposer 提出 · $accepter 答应"
+    val proposer = WishBoard.proposerLabel(wish, selfId, partner)
+    val accepter = WishBoard.accepterLabel(wish, selfId, partner)
+    val subtitle = when (view) {
+        WishBoard.WAITING_ME -> "$partner 提出 · 等你回应"
+        WishBoard.WAITING_PARTNER -> "等待 $partner 回应"
+        WishBoard.ACCEPTED -> "$proposer 提出 · $accepter 答应"
+        WishBoard.REALIZED -> "$proposer 提出 · 已经实现"
+        else -> "$proposer 提出 · 已失效"
+    }
+    var showRejectConfirm by remember(wish.id) { mutableStateOf(false) }
 
     Surface(
         modifier = modifier
@@ -638,6 +669,11 @@ private fun WishCard(
                         background = S520JColors.Primary,
                         foreground = S520JColors.PureWhite
                     )
+                    WishBoard.REJECTED -> SoftTag(
+                        text = WishBoard.INVALID,
+                        background = S520JColors.Sand,
+                        foreground = S520JColors.TextSecondary
+                    )
                     else -> SoftTag(
                         text = status,
                         background = S520JColors.Sand,
@@ -646,32 +682,102 @@ private fun WishCard(
                 }
             }
             Spacer(Modifier.height(16.dp))
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(38.dp)
-                    .clip(RoundedCornerShape(999.dp))
-                    .background(
-                        if (status == WishBoard.REALIZED) S520JColors.PrimarySoft else S520JColors.Primary
+            when (view) {
+                // 只有「待我回应」才允许答应/拒绝。
+                WishBoard.WAITING_ME -> Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    WishActionButton(
+                        text = "答应",
+                        filled = true,
+                        onClick = onAccept,
+                        modifier = Modifier.weight(1f)
                     )
-                    .then(
-                        if (status == WishBoard.REALIZED) Modifier else Modifier.clickable(onClick = onRealize)
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = if (status == WishBoard.REALIZED) "已实现" else "标记实现",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = if (status == WishBoard.REALIZED) S520JColors.DeepGreen else S520JColors.PureWhite
+                    WishActionButton(
+                        text = "拒绝",
+                        filled = false,
+                        onClick = { showRejectConfirm = true },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+                // 我提出的心愿只能等待对方回应，不给任何操作按钮。
+                WishBoard.WAITING_PARTNER -> WishActionButton(
+                    text = "等待 $partner 回应",
+                    filled = false,
+                    onClick = null,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                WishBoard.ACCEPTED -> WishActionButton(
+                    text = "标记实现",
+                    filled = true,
+                    onClick = onRealize,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                else -> WishActionButton(
+                    text = if (status == WishBoard.REALIZED) "已实现" else "已失效",
+                    filled = false,
+                    onClick = null,
+                    modifier = Modifier.fillMaxWidth()
                 )
             }
         }
     }
+
+    if (showRejectConfirm) {
+        AlertDialog(
+            onDismissRequest = { showRejectConfirm = false },
+            containerColor = S520JColors.Surface,
+            title = { Text("拒绝这个心愿？") },
+            text = { Text("拒绝后心愿会归入「失效」，双方都不能再标记实现。") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showRejectConfirm = false
+                    onReject()
+                }) {
+                    Text("拒绝", color = Color(0xFFB3261E))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRejectConfirm = false }) { Text("再想想") }
+            }
+        )
+    }
+}
+
+/** 心愿卡底部动作按钮；[onClick] 为 null 时只读展示。 */
+@Composable
+private fun WishActionButton(
+    text: String,
+    filled: Boolean,
+    onClick: (() -> Unit)?,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .height(38.dp)
+            .clip(RoundedCornerShape(999.dp))
+            .background(if (filled) S520JColors.Primary else S520JColors.Sand)
+            .then(if (onClick == null) Modifier else Modifier.clickable(onClick = onClick)),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = text,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Medium,
+            color = if (filled) S520JColors.PureWhite else S520JColors.TextSecondary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(horizontal = 8.dp)
+        )
+    }
 }
 
 @Composable
-private fun WishEmptyCard(status: String, onSeeAll: () -> Unit) {
+private fun WishEmptyCard(view: String, onSeeAll: () -> Unit) {
+    val text = when (view) {
+        WishBoard.WAITING_ME -> "还没有需要你回应的心愿"
+        WishBoard.WAITING_PARTNER -> "还没有等待对方回应的心愿"
+        WishBoard.INVALID -> "还没有失效的心愿"
+        else -> "还没有「$view」的心愿"
+    }
     Surface(
         modifier = Modifier
             .fillMaxWidth()
@@ -688,7 +794,7 @@ private fun WishEmptyCard(status: String, onSeeAll: () -> Unit) {
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
-                text = "还没有「$status」的心愿",
+                text = text,
                 fontSize = 13.sp,
                 color = S520JColors.TextSecondary
             )
@@ -845,17 +951,50 @@ private fun pokeIcon(name: String): ImageVector = when (name) {
     else -> Icons.Outlined.AutoAwesome
 }
 
-/** 参考图 5：五个圆形图标入口。 */
+/** 参考图 5：五个圆形图标入口单行排列；随手记走标题右侧角标。 */
 @Composable
 private fun QuickRecordSection(onOpenEditor: (ContentModule) -> Unit) {
-    HeartSectionHeader(title = "快速记录")
+    HeartSectionHeader(
+        title = "快速记录",
+        action = {
+            Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .clickable { onOpenEditor(ContentModule.JOT) },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.EditNote,
+                        contentDescription = "随手记",
+                        tint = S520JColors.TextSecondary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .clickable { onOpenEditor(ContentModule.LETTER) },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.MailOutline,
+                        contentDescription = "一封情书",
+                        tint = S520JColors.TextSecondary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+        }
+    )
     Spacer(Modifier.height(14.dp))
     BoxWithConstraints {
-        val gap = 8.dp
-        val itemWidth = (maxWidth - gap * 4f) / 5f
+        val itemWidth = maxWidth / QuickRecordTypes.primary.size.toFloat()
         val circle = minOf(54.dp, itemWidth)
-        Row(horizontalArrangement = Arrangement.spacedBy(gap)) {
-            QuickRecordTypes.all.forEach { type ->
+        Row {
+            QuickRecordTypes.primary.forEach { type ->
                 Column(
                     modifier = Modifier.weight(1f),
                     horizontalAlignment = Alignment.CenterHorizontally
@@ -883,7 +1022,8 @@ private fun QuickRecordSection(onOpenEditor: (ContentModule) -> Unit) {
                         fontSize = 12.sp,
                         lineHeight = 16.sp,
                         color = S520JColors.TextPrimary,
-                        maxLines = 1
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
             }
@@ -896,6 +1036,7 @@ private fun quickIcon(type: String): ImageVector = when (type) {
     QuickRecordTypes.COOKING -> Icons.Outlined.Restaurant
     QuickRecordTypes.SHOP -> Icons.Outlined.Storefront
     QuickRecordTypes.TRAVEL -> Icons.Outlined.Luggage
+    QuickRecordTypes.JOT -> Icons.Outlined.EditNote
     else -> Icons.Outlined.AutoAwesome
 }
 

@@ -58,6 +58,26 @@ class StarBoardTest {
         assertEquals(listOf("新菜", "旧菜"), StarBoard.list(records, StarBoard.SONG).map { it.title })
     }
 
+    @Test
+    fun `全部分类合并两个榜单并按日期倒序`() {
+        val records = listOf(
+            dish("松记菜", 5, StarBoard.SONG, day = 10L),
+            dish("锦记菜", 5, StarBoard.JIN, day = 30L),
+            dish("四星菜", 4, StarBoard.JIN, day = 40L)
+        )
+        assertEquals(listOf("锦记菜", "松记菜"), StarBoard.list(records, StarBoard.ALL).map { it.title })
+    }
+
+    @Test
+    fun `全部分类为空时返回空列表`() {
+        assertTrue(StarBoard.list(emptyList(), StarBoard.ALL).isEmpty())
+    }
+
+    @Test
+    fun `分类顺序为全部松记锦记`() {
+        assertEquals(listOf(StarBoard.ALL, StarBoard.SONG, StarBoard.JIN), StarBoard.tabs)
+    }
+
     private fun dish(title: String, stars: Int, board: String?, day: Long = 0L): ContentRecord =
         record(ContentModule.DISH, title, stars, board, day)
 

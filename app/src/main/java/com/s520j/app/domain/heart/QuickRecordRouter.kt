@@ -36,6 +36,7 @@ object QuickRecordRouter {
         QuickRecordTypes.SHOP -> ContentModule.SHOP
         QuickRecordTypes.TRAVEL -> ContentModule.TRAVEL
         QuickRecordTypes.ROMANTIC, LEGACY_ROMANTIC_TYPE -> ContentModule.ROMANTIC_MOMENT
+        QuickRecordTypes.JOT -> ContentModule.JOT
         LEGACY_TEXT_TYPE -> ContentModule.NOTE
         else -> ContentModule.RECENT_MOMENT
     }

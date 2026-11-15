@@ -9,6 +9,9 @@ plugins {
 
 val s520jVersionName: String = (project.findProperty("s520jVersionName") as String?) ?: "0.1.0-stage1"
 val s520jVersionCode: Int = (project.findProperty("s520jVersionCode") as String?)?.toInt() ?: 1
+val s520jCloudBaseUrl: String =
+    (project.findProperty("s520jCloudBaseUrl") as String?)
+        ?: "https://lin-run-forward-d3fjemwrbf5f4738-1527676157.ap-shanghai.app.tcloudbase.com"
 
 android {
     namespace = "com.s520j.app"
@@ -22,6 +25,7 @@ android {
         versionCode = s520jVersionCode
         versionName = s520jVersionName
         vectorDrawables { useSupportLibrary = true }
+        buildConfigField("String", "CLOUD_BASE_URL", "\"$s520jCloudBaseUrl\"")
     }
 
     buildTypes {
@@ -45,6 +49,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     packaging {

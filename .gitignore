@@ -17,3 +17,21 @@ dist/*.apk
 # 系统
 .DS_Store
 Thumbs.db
+
+# 云函数（_shared 由 prepare-functions.js 生成副本）
+cloudbase/functions/*/_shared/
+cloudbase/functions/**/node_modules/
+cloudbase/.env
+
+# 本地 CLI 登录态与临时日志（含凭据，禁止提交）
+.cloudbase-home/
+cloudbase-login.log
+.cloudbase.json
+
+# CLI 部署配置含服务端密钥，仅保留示例文件
+cloudbaserc.json
+
+# 本地构建/测试临时日志
+build-log*.txt
+test-log*.txt
+cloudbase/.login.log

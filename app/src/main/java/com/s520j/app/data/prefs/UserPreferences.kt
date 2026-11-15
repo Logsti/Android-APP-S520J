@@ -9,10 +9,13 @@ import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import com.s520j.app.data.CoupleStartDate
 import com.s520j.app.data.model.Visibility
+import com.s520j.app.data.sync.SyncFailureTrack
 import com.s520j.app.domain.heart.PokeCatalog
 import com.s520j.app.domain.us.ReminderSetting
 import com.s520j.app.domain.us.ReminderSettingCodec
 import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.core.stringSetPreferencesKey
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
@@ -52,6 +55,22 @@ class UserPreferences @Inject constructor(
         val DEFAULT_VISIBILITY = stringPreferencesKey("default_visibility")
         val MY_AVATAR_URI = stringPreferencesKey("my_avatar_uri")
         val PARTNER_AVATAR_URI = stringPreferencesKey("partner_avatar_uri")
+        // 云端会话（8B.1）：access/refresh token 只存本机，不同步、不写日志。
+        val CLOUD_ACCESS_TOKEN = stringPreferencesKey("cloud_access_token")
+        val CLOUD_REFRESH_TOKEN = stringPreferencesKey("cloud_refresh_token")
+        val CLOUD_TOKEN_EXPIRES_AT = longPreferencesKey("cloud_token_expires_at")
+        val CLOUD_USER_ID = stringPreferencesKey("cloud_user_id")
+        val CLOUD_SPACE_ID = stringPreferencesKey("cloud_space_id")
+        val SYNC_CURSOR = longPreferencesKey("sync_cursor")
+        val LAST_SYNC_AT = longPreferencesKey("last_sync_at")
+        val EVENT_CURSOR = longPreferencesKey("event_cursor")
+        val POKE_NOTIFY_ASKED = booleanPreferencesKey("poke_notify_asked")
+        val NOTIFICATION_BASELINE_USERS = stringSetPreferencesKey("notification_baseline_users")
+        val SYNC_FAILURE_ACCOUNT = stringPreferencesKey("sync_failure_account")
+        val SYNC_FAILURE_COUNT = intPreferencesKey("sync_failure_count")
+        val SYNC_FAILURE_SIGNATURE = stringPreferencesKey("sync_failure_signature")
+        val SYNC_FAILURE_ALERTED = booleanPreferencesKey("sync_failure_alerted")
+        val SYNC_FAILURE_GENERATION = longPreferencesKey("sync_failure_generation")
     }
 
     val session: Flow<SessionProfile> = context.dataStore.data.map { p ->
@@ -146,6 +165,13 @@ class UserPreferences @Inject constructor(
         }
     }
 
+    /** 绑定后从 space.get 同步对方昵称。 */
+    suspend fun setPartnerNickname(name: String?) {
+        context.dataStore.edit { prefs ->
+            if (name.isNullOrBlank()) prefs.remove(Keys.PARTNER_NICKNAME) else prefs[Keys.PARTNER_NICKNAME] = name
+        }
+    }
+
     /** 记录类分类体系 v2 迁移是否已执行（幂等守卫）。 */
     suspend fun taxonomyMigratedSnapshot(): Boolean =
         context.dataStore.data.map { it[Keys.TAXONOMY_V2_MIGRATED] ?: false }.first()
@@ -156,9 +182,130 @@ class UserPreferences @Inject constructor(
 
     suspend fun sessionSnapshot(): SessionProfile = session.first()
 
+    /** 一次性环境重置：清除登录态、全部本机偏好及同步/事件游标。 */
+    suspend fun clearForOneTimeReset() {
+        context.dataStore.edit { it.clear() }
+    }
+
     suspend fun challengeSnapshot(): String? = challengeState.first()
+
+    // ---------- 云端会话与同步游标（8B） ----------
+
+    data class CloudSession(
+        val userId: String,
+        val accessToken: String,
+        val refreshToken: String,
+        val expiresAt: Long,
+        val spaceId: String?
+    )
+
+    suspend fun cloudSessionSnapshot(): CloudSession? {
+        val p = context.dataStore.data.first()
+        val access = p[Keys.CLOUD_ACCESS_TOKEN] ?: return null
+        val refresh = p[Keys.CLOUD_REFRESH_TOKEN] ?: return null
+        return CloudSession(
+            userId = p[Keys.CLOUD_USER_ID].orEmpty(),
+            accessToken = access,
+            refreshToken = refresh,
+            expiresAt = p[Keys.CLOUD_TOKEN_EXPIRES_AT] ?: 0L,
+            spaceId = p[Keys.CLOUD_SPACE_ID]
+        )
+    }
+
+    suspend fun saveCloudSession(
+        userId: String,
+        accessToken: String,
+        refreshToken: String,
+        expiresAt: Long
+    ) {
+        context.dataStore.edit { p ->
+            p[Keys.CLOUD_USER_ID] = userId
+            p[Keys.CLOUD_ACCESS_TOKEN] = accessToken
+            p[Keys.CLOUD_REFRESH_TOKEN] = refreshToken
+            p[Keys.CLOUD_TOKEN_EXPIRES_AT] = expiresAt
+        }
+    }
+
+    suspend fun clearCloudSession() {
+        context.dataStore.edit { p ->
+            p.remove(Keys.CLOUD_ACCESS_TOKEN)
+            p.remove(Keys.CLOUD_REFRESH_TOKEN)
+            p.remove(Keys.CLOUD_TOKEN_EXPIRES_AT)
+            p.remove(Keys.CLOUD_USER_ID)
+            p.remove(Keys.CLOUD_SPACE_ID)
+            p.remove(Keys.SYNC_CURSOR)
+            p.remove(Keys.LAST_SYNC_AT)
+            p.remove(Keys.EVENT_CURSOR)
+        }
+    }
+
+    suspend fun setCloudSpaceId(spaceId: String?) {
+        context.dataStore.edit { p ->
+            if (spaceId.isNullOrBlank()) p.remove(Keys.CLOUD_SPACE_ID) else p[Keys.CLOUD_SPACE_ID] = spaceId
+        }
+    }
+
+    suspend fun syncCursorSnapshot(): Long = context.dataStore.data.first()[Keys.SYNC_CURSOR] ?: 0L
+
+    suspend fun setSyncCursor(cursor: Long) {
+        context.dataStore.edit { it[Keys.SYNC_CURSOR] = cursor }
+    }
+
+    /** 最近一次成功同步时间（9.3）：重启后仍可显示「上次同步」。 */
+    suspend fun lastSyncAtSnapshot(): Long = context.dataStore.data.first()[Keys.LAST_SYNC_AT] ?: 0L
+
+    suspend fun setLastSyncAt(ts: Long) {
+        context.dataStore.edit { it[Keys.LAST_SYNC_AT] = ts }
+    }
 
     suspend fun customPokesSnapshot(): List<String> = customPokes.first()
 
     suspend fun reminderSettingSnapshot(): ReminderSetting = reminderSetting.first()
+
+    /** 双人事件拉取游标：按 created_at 递增，重装/断网后不会重复提醒。 */
+    suspend fun eventCursorSnapshot(): Long = context.dataStore.data.first()[Keys.EVENT_CURSOR] ?: 0L
+
+    suspend fun setEventCursor(cursor: Long) {
+        context.dataStore.edit { it[Keys.EVENT_CURSOR] = cursor }
+    }
+
+    /** 通知权限是否已询问过：用户拒绝后不再重复弹系统请求。 */
+    suspend fun pokeNotifyAskedSnapshot(): Boolean =
+        context.dataStore.data.first()[Keys.POKE_NOTIFY_ASKED] ?: false
+
+    suspend fun markPokeNotifyAsked() {
+        context.dataStore.edit { it[Keys.POKE_NOTIFY_ASKED] = true }
+    }
+
+    /** 通知基线按本机 DataStore + 云端账号保存；普通退出登录不清除。 */
+    suspend fun hasNotificationBaseline(userId: String): Boolean =
+        context.dataStore.data.first()[Keys.NOTIFICATION_BASELINE_USERS]?.contains(userId) == true
+
+    suspend fun markNotificationBaseline(userId: String) {
+        context.dataStore.edit { p ->
+            p[Keys.NOTIFICATION_BASELINE_USERS] =
+                (p[Keys.NOTIFICATION_BASELINE_USERS] ?: emptySet()) + userId
+        }
+    }
+
+    suspend fun syncFailureTrackSnapshot(): SyncFailureTrack {
+        val p = context.dataStore.data.first()
+        return SyncFailureTrack(
+            accountId = p[Keys.SYNC_FAILURE_ACCOUNT].orEmpty(),
+            consecutive = p[Keys.SYNC_FAILURE_COUNT] ?: 0,
+            signature = p[Keys.SYNC_FAILURE_SIGNATURE].orEmpty(),
+            alerted = p[Keys.SYNC_FAILURE_ALERTED] ?: false,
+            generation = p[Keys.SYNC_FAILURE_GENERATION] ?: 0L
+        )
+    }
+
+    suspend fun saveSyncFailureTrack(track: SyncFailureTrack) {
+        context.dataStore.edit { p ->
+            p[Keys.SYNC_FAILURE_ACCOUNT] = track.accountId
+            p[Keys.SYNC_FAILURE_COUNT] = track.consecutive
+            p[Keys.SYNC_FAILURE_SIGNATURE] = track.signature
+            p[Keys.SYNC_FAILURE_ALERTED] = track.alerted
+            p[Keys.SYNC_FAILURE_GENERATION] = track.generation
+        }
+    }
 }

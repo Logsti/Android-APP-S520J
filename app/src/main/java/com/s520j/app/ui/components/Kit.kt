@@ -11,8 +11,10 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -23,6 +25,7 @@ import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.People
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
@@ -30,6 +33,7 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -43,27 +47,47 @@ import com.s520j.app.ui.theme.CardCorner
 import com.s520j.app.ui.theme.Dimens
 import com.s520j.app.ui.theme.S520JColors
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PageContainer(
     modifier: Modifier = Modifier,
     scrollable: Boolean = true,
+    scrollState: ScrollState = rememberScrollState(),
+    onRefresh: (() -> Unit)? = null,
+    refreshing: Boolean = false,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    val scrollState = rememberScrollState()
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(S520JColors.Background),
+            .background(S520JColors.Background)
+            // 键盘弹出时收窄滚动视口，输入框才能被滚动到可见区域（否则会被键盘挡住）。
+            .imePadding(),
         contentAlignment = Alignment.TopCenter
     ) {
-        Column(
-            modifier = Modifier
-                .widthIn(max = Dimens.PageMaxWidth)
-                .fillMaxWidth()
-                .then(if (scrollable) Modifier.verticalScroll(scrollState) else Modifier)
-                .padding(horizontal = Dimens.PageHorizontalPadding),
-            content = content
-        )
+        val body: @Composable () -> Unit = {
+            Column(
+                modifier = Modifier
+                    .widthIn(max = Dimens.PageMaxWidth)
+                    .fillMaxWidth()
+                    .then(if (scrollable) Modifier.verticalScroll(scrollState) else Modifier)
+                    .padding(horizontal = Dimens.PageHorizontalPadding),
+                content = content
+            )
+        }
+        // 传入 onRefresh 时支持下拉刷新（9.3）：三张主页面下拉即触发云端同步。
+        if (onRefresh != null) {
+            PullToRefreshBox(
+                isRefreshing = refreshing,
+                onRefresh = onRefresh,
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.TopCenter
+            ) {
+                body()
+            }
+        } else {
+            body()
+        }
     }
 }
 
