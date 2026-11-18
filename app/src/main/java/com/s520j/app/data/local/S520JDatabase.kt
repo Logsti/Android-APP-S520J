@@ -18,7 +18,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         MediaEntity::class,
         SyncConflictEntity::class
     ],
-    version = 6,
+    version = 8,
     exportSchema = false
 )
 abstract class S520JDatabase : RoomDatabase() {
@@ -81,9 +81,29 @@ abstract class S520JDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * v6 -> v8：v7 曾新增菜谱池本机快照表，现已整体移除（数据只存云端）。
+         * 旧 v6 库本就没有该表，DROP IF EXISTS 兜底，其余本地数据与未同步 outbox 原样保留。
+         */
+        private val MIGRATION_6_8 = object : Migration(6, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("DROP TABLE IF EXISTS `cached_dishes`")
+            }
+        }
+
+        /** v7 -> v8：删除菜谱本机快照表（数据只存云端），其余本地缓存与未同步 outbox 保留。 */
+        private val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("DROP TABLE IF EXISTS `cached_dishes`")
+            }
+        }
+
         fun create(context: Context): S520JDatabase =
             Room.databaseBuilder(context, S520JDatabase::class.java, NAME)
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
+                .addMigrations(
+                    MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4,
+                    MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_8, MIGRATION_7_8
+                )
                 .fallbackToDestructiveMigration()
                 .build()
     }

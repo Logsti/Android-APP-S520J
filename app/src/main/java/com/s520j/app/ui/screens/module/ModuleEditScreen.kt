@@ -22,6 +22,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.StarBorder
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -104,6 +105,7 @@ fun ModuleEditScreen(
     val mediaUris = remember { mutableStateListOf<String>() }
     var loaded by remember { mutableStateOf(false) }
     var viewerUri by remember { mutableStateOf<String?>(null) }
+    var pendingDelete by remember { mutableStateOf(false) }
 
     LaunchedEffect(existing, preferredVisibility) {
         if (!loaded && existing != null) {
@@ -524,12 +526,45 @@ fun ModuleEditScreen(
             enabled = !isReadOnly
         )
 
+        // 删除入口：仅编辑已有记录且空间可写时出现，新增记录不显示。
+        if (existing != null && !isReadOnly) {
+            Spacer(Modifier.height(4.dp))
+            TextButton(
+                onClick = { pendingDelete = true },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("删除这条${module.label}", color = DeleteRed)
+            }
+        }
+
         Spacer(Modifier.height(40.dp))
+    }
+
+    if (pendingDelete && existing != null) {
+        AlertDialog(
+            onDismissRequest = { pendingDelete = false },
+            containerColor = S520JColors.Surface,
+            title = { Text("删除这条记录？") },
+            text = { Text("会移入回收站并保留 30 天，任一方都可恢复。") },
+            confirmButton = {
+                TextButton(onClick = {
+                    pendingDelete = false
+                    vm.deleteRecord(existing.id) { onBack() }
+                }) {
+                    Text("删除", color = DeleteRed)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingDelete = false }) { Text("取消") }
+            }
+        )
     }
 
     viewerUri?.let { uri ->
         ImageViewerDialog(model = uri, onDismiss = { viewerUri = null })
     }
 }
+
+private val DeleteRed = Color(0xFFB3261E)
 
 private fun Long.toDayText(): String = toLocalDate().toString()

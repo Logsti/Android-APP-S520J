@@ -46,9 +46,27 @@ object PhotoFeed {
         else -> null
     }
 
-    fun feed(records: List<ContentRecord>): List<ContentRecord> =
-        records.filter { it.module in sources && it.mediaIds.isNotEmpty() }
-            .sortedByDescending { it.createdAt }
+    /**
+     * 照片墙排序键：记录时间用 createdAt；填写日期用 eventDate，没填写的回落到 createdAt，
+     * 避免历史记录因为缺日期被挤到最前或最后。
+     */
+    fun sortKeyOf(record: ContentRecord, byEventDate: Boolean): Long =
+        if (byEventDate) record.eventDate ?: record.createdAt else record.createdAt
+
+    /**
+     * 照片墙列表：默认按记录时间倒序（最新在前）。
+     * byEventDate 为 true 时按填写的日期排序，ascending 为 true 时正序（最早在前）。
+     */
+    fun feed(
+        records: List<ContentRecord>,
+        byEventDate: Boolean = false,
+        ascending: Boolean = false
+    ): List<ContentRecord> {
+        val sorted = records
+            .filter { it.module in sources && it.mediaIds.isNotEmpty() }
+            .sortedWith(compareBy({ sortKeyOf(it, byEventDate) }, { it.id }))
+        return if (ascending) sorted else sorted.reversed()
+    }
 
     fun sharedPhotos(records: List<ContentRecord>): List<SharedPhoto> =
         feed(records).flatMap { record ->

@@ -13,6 +13,41 @@
         "CB_API_KEY": "<service-role-api-key>",
         "CB_PG_ROLE": "cloudbase_postgres"
       }
+    },
+    {
+      "name": "content",
+      "timeout": 20,
+      "runtime": "Nodejs20.19",
+      "handler": "index.main",
+      "envVariables": {
+        "CB_ENV_ID": "<your-cloudbase-env-id>",
+        "CB_API_KEY": "<service-role-api-key>",
+        "CB_PG_ROLE": "cloudbase_postgres",
+        "SHOWAPI_APP_KEY": "<showapi-app-key>",
+        "DISH_DAILY_LIMIT": "100",
+        "DISH_RESERVE": "20"
+      }
+    },
+    {
+      "name": "dishSync",
+      "timeout": 60,
+      "runtime": "Nodejs20.19",
+      "handler": "index.main",
+      "triggers": [
+        {
+          "name": "dishSyncDaily",
+          "type": "timer",
+          "config": "0 30 3 * * * *"
+        }
+      ],
+      "envVariables": {
+        "CB_ENV_ID": "<your-cloudbase-env-id>",
+        "CB_API_KEY": "<service-role-api-key>",
+        "CB_PG_ROLE": "cloudbase_postgres",
+        "SHOWAPI_APP_KEY": "<showapi-app-key>",
+        "DISH_DAILY_LIMIT": "100",
+        "DISH_RESERVE": "20"
+      }
     }
   ]
 }

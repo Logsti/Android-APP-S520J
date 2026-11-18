@@ -175,3 +175,4 @@ interface NotificationDao {
     @Query("UPDATE notifications SET read = 1")
     suspend fun markAllRead()
 }
+

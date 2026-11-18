@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * 云函数打包准备：
- *  1) 补齐 9 个函数目录的 index.js 与 package.json（仅在缺失时生成，避免覆盖手改内容）；
+ *  1) 补齐各函数目录的 index.js 与 package.json（仅在缺失时生成，避免覆盖手改内容）；
  *  2) 把 functions/_shared 复制进每个函数目录（CloudBase 只上传函数目录内文件）。
  * 部署前执行：node cloudbase/scripts/prepare-functions.js
  */
@@ -10,12 +10,21 @@ const path = require('path');
 
 const root = path.resolve(__dirname, '..', '..');
 const fnRoot = path.join(root, 'cloudbase', 'functions');
-const groups = ['auth', 'space', 'content', 'sync', 'media', 'recycle', 'notification', 'settings', 'backup'];
+const groups = ['auth', 'space', 'content', 'sync', 'media', 'recycle', 'notification', 'settings', 'backup', 'dishSync'];
 
 // 一个函数可承载多个接口前缀（entry.js 按前缀路由）。
 const actionGroups = {
   auth: ['auth', 'users', 'profile'],
   space: ['space', 'challenge', 'event'],
+  content: ['content', 'dish'],
+};
+
+// 定时任务不经过 action 路由，使用独立入口。
+const customEntries = {
+  dishSync: "const { dishSyncInternal } = require('./_shared/dishHandlers');\n"
+    + 'exports.main = async function main(event) {\n'
+    + '  return dishSyncInternal(event || {});\n'
+    + '};\n',
 };
 
 const pkg = (group) => ({
@@ -44,7 +53,8 @@ for (const group of groups) {
   // 总是覆盖：入口前缀属于部署契约，避免手改后与 handlers 路由不一致。
   fs.writeFileSync(
     indexFile,
-    `const { createEntry } = require('./_shared/entry');\nexports.main = createEntry(${JSON.stringify(allowed)});\n`
+    customEntries[group]
+      || `const { createEntry } = require('./_shared/entry');\nexports.main = createEntry(${JSON.stringify(allowed)});\n`
   );
 
   const pkgFile = path.join(dir, 'package.json');

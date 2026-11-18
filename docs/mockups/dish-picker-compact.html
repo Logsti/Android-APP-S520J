@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>今天吃啥 · 改造稿</title>
+<style>
+  :root{
+    --bg:#F8F6EE; --card:#FFFDF8; --line:#EFE9DA; --line2:#F3EEDF;
+    --primary:#7D9676; --sand:#EEE4CE; --ink:#2F2A26; --sub:#8C8378; --faint:#A39A8C;
+  }
+  *{box-sizing:border-box; -webkit-font-smoothing:antialiased;}
+  body{
+    margin:0; background:#E8E5DC; padding:28px 0 48px;
+    font-family:-apple-system,"PingFang SC","Microsoft YaHei","Noto Sans SC",sans-serif;
+    display:flex; justify-content:center; align-items:flex-start;
+  }
+  .phone{
+    width:390px; background:var(--bg); border-radius:34px; overflow:hidden;
+    box-shadow:0 24px 60px rgba(60,50,30,.22), 0 2px 0 rgba(255,255,255,.6) inset;
+    border:1px solid #DCD6C6;
+  }
+  .status{display:flex;justify-content:space-between;align-items:center;padding:12px 22px 4px;font-size:12px;color:#6F6656;font-weight:600;}
+  .status .right{letter-spacing:.5px;}
+  .bar{display:flex;align-items:center;gap:10px;padding:8px 16px 6px;}
+  .back{font-size:22px;color:var(--ink);line-height:1;}
+  .bar h1{font-size:19px;margin:0;font-weight:700;color:var(--ink);letter-spacing:.5px;}
+  .content{padding:6px 16px 26px;}
+
+  /* header */
+  .hero{position:relative;height:176px;border-radius:20px;overflow:hidden;background:#D9CDB4;}
+  .hero img{width:100%;height:100%;object-fit:cover;display:block;}
+  .hero .veil{position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.05) 30%,rgba(50,30,10,.62) 100%);}
+  .hero .title{position:absolute;left:16px;bottom:26px;color:#fff;font-size:27px;font-weight:800;letter-spacing:3px;text-shadow:0 2px 8px rgba(80,40,0,.35);}
+  .hero .sub{position:absolute;left:17px;bottom:10px;color:rgba(255,255,255,.9);font-size:11.5px;letter-spacing:1px;}
+  .hero .swap{position:absolute;right:10px;top:10px;font-size:11px;color:#fff;background:rgba(255,255,255,.24);border:1px solid rgba(255,255,255,.45);backdrop-filter:blur(6px);padding:5px 10px;border-radius:999px;}
+  .caption{margin:11px 2px 12px;font-size:11.5px;color:var(--sub);letter-spacing:.4px;}
+
+  /* group card */
+  .card{background:var(--card);border:1px solid var(--line);border-radius:18px;overflow:hidden;box-shadow:0 1px 2px rgba(90,70,40,.04);}
+  .row{display:flex;align-items:center;height:52px;padding:0 14px;gap:10px;}
+  .row + .row{border-top:1px solid var(--line2);}
+  .row .name{font-size:15px;font-weight:650;color:var(--ink);width:44px;letter-spacing:.5px;}
+  .chip{font-size:11px;color:#6F6656;background:#F3EFE4;border-radius:999px;padding:5px 9px;display:inline-flex;align-items:center;gap:4px;border:1px solid #EAE3D2;}
+  .chip svg{opacity:.55;}
+  .grow{flex:1;}
+  .stepper{display:flex;align-items:center;gap:8px;}
+  .stp{width:30px;height:30px;border-radius:50%;background:#F3EFE4;color:#6F6656;display:flex;align-items:center;justify-content:center;font-size:16px;border:1px solid #EAE3D2;}
+  .stp.on{background:var(--primary);color:#fff;border-color:var(--primary);}
+  .num{width:22px;text-align:center;font-size:15px;font-weight:650;color:var(--ink);}
+
+  .summary{display:flex;align-items:center;height:54px;padding:0 14px;border-top:1px solid var(--line);background:#FBF8EF;}
+  .summary .lead{font-size:13.5px;font-weight:650;color:var(--ink);}
+  .summary .meta{font-size:10.5px;color:var(--sub);margin-top:2px;letter-spacing:.3px;}
+  .prefer{display:flex;align-items:center;gap:7px;}
+  .prefer span{font-size:11.5px;color:#6F6656;}
+  .switch{width:40px;height:23px;border-radius:999px;background:var(--primary);position:relative;box-shadow:inset 0 1px 2px rgba(0,0,0,.12);}
+  .switch::after{content:"";position:absolute;top:2px;right:2px;width:19px;height:19px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.2);}
+
+  .cta{margin-top:12px;height:47px;border-radius:24px;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:650;letter-spacing:2px;box-shadow:0 6px 14px rgba(125,150,118,.28);}
+
+  /* section */
+  .sect{display:flex;align-items:center;justify-content:space-between;margin:22px 2px 10px;}
+  .sect h2{font-size:17.5px;margin:0;font-weight:750;color:var(--ink);letter-spacing:.5px;}
+  .badge{font-size:10.5px;color:#8A7A4F;background:var(--sand);border-radius:999px;padding:4px 9px;}
+  .badge.ok{color:#5C7A56;background:#E6EEE2;}
+  .dish{padding:11px 14px;}
+  .dish + .dish{border-top:1px solid var(--line2);}
+  .dish .n{font-size:14.5px;font-weight:650;color:var(--ink);letter-spacing:.3px;}
+  .dish .m{font-size:10.5px;color:var(--sub);margin-top:3px;letter-spacing:.3px;}
+  .dish{display:flex;align-items:center;gap:10px;}
+  .swapone{font-size:11.5px;color:var(--primary);border:1px solid #DDE6D8;background:#F4F7F1;padding:5px 10px;border-radius:999px;white-space:nowrap;}
+  .confirm{margin-top:12px;height:45px;border-radius:23px;border:1.5px solid var(--primary);color:var(--primary);background:#FBFCF9;display:flex;align-items:center;justify-content:center;font-size:14.5px;font-weight:650;letter-spacing:1.5px;}
+  .hint{text-align:center;font-size:10.5px;color:var(--faint);margin-top:7px;letter-spacing:.3px;}
+
+  .chips{display:flex;flex-wrap:wrap;gap:7px;margin-top:2px;}
+  .dchip{font-size:11px;color:#6F6656;background:#FFFDF8;border:1px solid var(--line);border-radius:999px;padding:5px 10px;}
+  .muted{font-size:10.5px;color:var(--sub);}
+  .foot{margin-top:18px;font-size:10px;line-height:1.7;color:var(--faint);letter-spacing:.2px;}
+  .note{width:330px;margin-left:26px;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;color:#5F574A;}
+  .note h3{font-size:13px;margin:0 0 10px;letter-spacing:.5px;}
+  .note li{font-size:12px;line-height:1.85;margin-bottom:2px;}
+  .wrap{display:flex;align-items:flex-start;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="phone">
+    <div class="status"><span>13:54</span><span class="right">5G &nbsp; 100%</span></div>
+    <div class="bar"><span class="back">←</span><h1>今天吃啥</h1></div>
+    <div class="content">
+
+      <div class="hero">
+        <img src="assets/dish-header.png" alt="一桌家常菜" />
+        <div class="veil"></div>
+        <div class="swap">点我换图</div>
+        <div class="title">今天吃啥</div>
+        <div class="sub">荤菜 · 素菜 · 汤 · 主食&nbsp;&nbsp;随机配一桌</div>
+      </div>
+
+      <div class="caption">今天吃什么，交给一点点运气。</div>
+
+      <div class="card">
+        <div class="row">
+          <div class="name">荤菜</div>
+          <div class="chip">全部 <svg width="7" height="5" viewBox="0 0 7 5" fill="none"><path d="M1 1l2.5 2.5L6 1" stroke="#6F6656" stroke-width="1.1" stroke-linecap="round"/></svg></div>
+          <div class="grow"></div>
+          <div class="stepper"><div class="stp">−</div><div class="num">1</div><div class="stp on">+</div></div>
+        </div>
+        <div class="row">
+          <div class="name">素菜</div>
+          <div class="chip">全部 <svg width="7" height="5" viewBox="0 0 7 5" fill="none"><path d="M1 1l2.5 2.5L6 1" stroke="#6F6656" stroke-width="1.1" stroke-linecap="round"/></svg></div>
+          <div class="grow"></div>
+          <div class="stepper"><div class="stp">−</div><div class="num">1</div><div class="stp on">+</div></div>
+        </div>
+        <div class="row">
+          <div class="name">汤</div>
+          <div class="chip">全部 <svg width="7" height="5" viewBox="0 0 7 5" fill="none"><path d="M1 1l2.5 2.5L6 1" stroke="#6F6656" stroke-width="1.1" stroke-linecap="round"/></svg></div>
+          <div class="grow"></div>
+          <div class="stepper"><div class="stp">−</div><div class="num">0</div><div class="stp on">+</div></div>
+        </div>
+        <div class="row">
+          <div class="name">主食</div>
+          <div class="chip">全部 <svg width="7" height="5" viewBox="0 0 7 5" fill="none"><path d="M1 1l2.5 2.5L6 1" stroke="#6F6656" stroke-width="1.1" stroke-linecap="round"/></svg></div>
+          <div class="grow"></div>
+          <div class="stepper"><div class="stp">−</div><div class="num">1</div><div class="stp on">+</div></div>
+        </div>
+        <div class="summary">
+          <div>
+            <div class="lead">这一桌 3 道</div>
+            <div class="meta">荤 1 · 素 1 · 汤 0 · 主食 1</div>
+          </div>
+          <div class="grow"></div>
+          <div class="prefer"><span>新菜优先</span><div class="switch"></div></div>
+        </div>
+      </div>
+
+      <div class="cta">换 一 桌</div>
+
+      <div class="sect"><h2>这一桌</h2><span class="badge">待确认</span></div>
+      <div class="card">
+        <div class="dish"><div><div class="n">黑椒牛柳</div><div class="m">牛 · 荤菜 · 实时</div></div><div class="grow"></div><div class="swapone">换一道</div></div>
+        <div class="dish"><div><div class="n">蒜蓉油麦菜</div><div class="m">叶类蔬菜 · 素菜 · 实时</div></div><div class="grow"></div><div class="swapone">换一道</div></div>
+        <div class="dish"><div><div class="n">鲜虾馄饨</div><div class="m">馄饨 · 主食 · 云端菜谱池</div></div><div class="grow"></div><div class="swapone">换一道</div></div>
+      </div>
+      <div class="confirm">就 吃 这 一 桌</div>
+      <div class="hint">确认后才会计入「点过的菜」</div>
+
+      <div class="sect"><h2>点过的菜</h2><span class="muted">共 128 道 · 清空</span></div>
+      <div class="chips">
+        <span class="dchip">红烧肉</span><span class="dchip">番茄炒蛋</span><span class="dchip">冬瓜排骨汤</span>
+        <span class="dchip">醋溜土豆丝</span><span class="dchip">宫保鸡丁</span><span class="dchip">麻婆豆腐</span>
+      </div>
+
+      <div class="foot">菜谱实时抓取后存入云端池（上限 10 万道），本机不保存菜谱数据；云端不可用时使用内置 90 道兜底。</div>
+    </div>
+  </div>
+
+  <div class="note">
+    <h3>改造要点</h3>
+    <ul>
+      <li>四组从 4 张卡合并为 1 张卡 4 行，行高 52dp，组间分隔线；首屏放下四组 + 按钮。</li>
+      <li>每行固定「组名 44dp + 二级分类 chip + 右侧步进器」，删除大块留白。</li>
+      <li>汇总行并入卡片底部：本桌 N 道 + 各组份数 + 新菜优先开关。</li>
+      <li>随机按钮只保留一个「换一桌」；每道菜单独「换一道」。</li>
+      <li>新增「就吃这一桌」确认，未确认不写入云端点过的菜。</li>
+      <li>点过的菜改为紧凑 chips，显示总数与清空入口。</li>
+    </ul>
+  </div>
+</div>
+</body>
+</html>

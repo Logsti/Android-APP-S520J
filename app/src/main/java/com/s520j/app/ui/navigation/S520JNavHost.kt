@@ -56,6 +56,9 @@ import com.s520j.app.data.couple.CoupleEvent
 import com.s520j.app.data.model.ContentModule
 import com.s520j.app.data.sync.SyncPolicy
 import com.s520j.app.ui.AppViewModel
+import com.s520j.app.ui.components.SnackbarTiming
+import com.s520j.app.ui.components.showTimedMessage
+import com.s520j.app.ui.screens.gallery.DishPickerScreen
 import com.s520j.app.ui.screens.gallery.GalleryScreen
 import com.s520j.app.ui.screens.gallery.SharedPhotosScreen
 import com.s520j.app.ui.screens.gallery.StarBoardScreen
@@ -108,11 +111,7 @@ fun MainShell(vm: AppViewModel) {
 
     LaunchedEffect(Unit) {
         vm.messages.collect { message ->
-            val result = snackbarHostState.showSnackbar(
-                message = message.text,
-                actionLabel = message.actionLabel,
-                withDismissAction = true
-            )
+            val result = snackbarHostState.showTimedMessage(message)
             if (result == SnackbarResult.ActionPerformed) {
                 message.targetModule?.let { module ->
                     navController.navigate("module/${module.name}")
@@ -121,11 +120,11 @@ fun MainShell(vm: AppViewModel) {
         }
     }
 
-    // 碰一碰 / 挑战达成横幅：展示 6 秒后自动消失，点击进入通知中心。
+    // 碰一碰 / 挑战达成横幅：展示 2 秒后自动消失，点击进入通知中心。
     val pokeBanner by vm.pokeBanner.collectAsState()
     LaunchedEffect(pokeBanner?.id) {
         if (pokeBanner != null) {
-            kotlinx.coroutines.delay(6_000)
+            kotlinx.coroutines.delay(SnackbarTiming.BANNER_MS)
             vm.dismissPokeBanner()
         }
     }
@@ -235,7 +234,8 @@ fun MainShell(vm: AppViewModel) {
                             navController.navigate("module/${module.name}/edit")
                         },
                         onOpenStarBoard = { navController.navigate("starboard") },
-                        onOpenSharedPhotos = { navController.navigate("gallery/photos") }
+                        onOpenSharedPhotos = { navController.navigate("gallery/photos") },
+                        onOpenDishPicker = { navController.navigate("gallery/food") }
                     )
                 }
 
@@ -244,6 +244,10 @@ fun MainShell(vm: AppViewModel) {
                         vm = vm,
                         onBack = { navController.popBackStack() }
                     )
+                }
+
+                composable("gallery/food") {
+                    DishPickerScreen(onBack = { navController.popBackStack() })
                 }
 
                 composable("starboard") {

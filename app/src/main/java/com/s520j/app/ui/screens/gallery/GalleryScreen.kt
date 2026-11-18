@@ -35,6 +35,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -62,8 +63,6 @@ import com.s520j.app.ui.components.TagPill
 import com.s520j.app.ui.theme.Dimens
 import com.s520j.app.ui.theme.S520JColors
 import com.s520j.app.ui.util.toDayTitle
-import com.s520j.app.ui.util.today
-import com.s520j.app.ui.util.weekdayName
 
 @Composable
 fun GalleryScreen(
@@ -72,7 +71,8 @@ fun GalleryScreen(
     onOpenRecord: (ContentModule, String) -> Unit,
     onCreateRecord: (ContentModule) -> Unit,
     onOpenStarBoard: () -> Unit,
-    onOpenSharedPhotos: () -> Unit
+    onOpenSharedPhotos: () -> Unit,
+    onOpenDishPicker: () -> Unit
 ) {
     val allFlow = remember { vm.allContents() }
     val records by allFlow.collectAsState(initial = emptyList())
@@ -84,12 +84,17 @@ fun GalleryScreen(
 
     var category by remember { mutableStateOf(PhotoFeed.ALL) }
     var query by remember { mutableStateOf("") }
+    // 照片墙排序：默认记录时间、倒序（最新在前）；切换后保持到离开页面。
+    var sortByEventDate by rememberSaveable { mutableStateOf(false) }
+    var ascending by rememberSaveable { mutableStateOf(false) }
     var showAddEntries by remember { mutableStateOf(false) }
     // 非空时展示全屏多图浏览；点击照片区写入，关闭时清空。
     var viewingImages by remember { mutableStateOf<List<String>?>(null) }
 
     // 照片墙 = 五个带图来源，分类完全由 module 派生。
-    val feed = remember(records) { PhotoFeed.feed(records) }
+    val feed = remember(records, sortByEventDate, ascending) {
+        PhotoFeed.feed(records, byEventDate = sortByEventDate, ascending = ascending)
+    }
     val filtered = remember(feed, category) { PhotoFeed.filter(feed, category) }
     val visible = remember(filtered, query) { PhotoFeed.search(filtered, query) }
     val dishCount = remember(records) { records.count { it.module == ContentModule.DISH } }
@@ -115,21 +120,35 @@ fun GalleryScreen(
                 color = S520JColors.TextSecondary
             )
             Spacer(Modifier.height(14.dp))
-            SoftCard(containerColor = S520JColors.Sand) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+            // “今天吃啥”入口：点菜页自带头图与份数选择，这里只做轻量引导。
+            SoftCard(containerColor = S520JColors.Sand, onClick = onOpenDishPicker) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
                     Column(Modifier.weight(1f)) {
                         Text(
-                            text = today().toDayTitle(),
+                            text = "今天吃啥",
                             style = MaterialTheme.typography.titleLarge,
-                            color = S520JColors.TextPrimary
+                            color = S520JColors.TextPrimary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
+                        Spacer(Modifier.height(2.dp))
                         Text(
-                            text = today().weekdayName(),
+                            text = "不知道吃什么？随机凑一桌",
                             style = MaterialTheme.typography.labelSmall,
-                            color = S520JColors.TextSecondary
+                            color = S520JColors.TextSecondary,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
-                    Text("今日", style = MaterialTheme.typography.labelSmall, color = S520JColors.TextSecondary)
+                    Text(
+                        text = "去点菜 ›",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = S520JColors.Primary,
+                        maxLines = 1
+                    )
                 }
             }
 
@@ -185,6 +204,26 @@ fun GalleryScreen(
                 label = "搜索照片",
                 placeholder = "按标题或内容搜索"
             )
+            Spacer(Modifier.height(10.dp))
+            // 排序：记录时间 / 填写日期 + 正序倒序；窄屏放不下时可横滑。
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.horizontalScroll(rememberScrollState())
+            ) {
+                Text(
+                    text = "排序",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = S520JColors.TextSecondary
+                )
+                SortChip(text = "记录时间", selected = !sortByEventDate) { sortByEventDate = false }
+                SortChip(text = "填写日期", selected = sortByEventDate) { sortByEventDate = true }
+                SortChip(
+                    text = if (ascending) "正序 ↑" else "倒序 ↓",
+                    selected = false,
+                    onClick = { ascending = !ascending }
+                )
+            }
             Spacer(Modifier.height(12.dp))
 
             if (visible.isEmpty()) {
@@ -266,7 +305,6 @@ fun GalleryScreen(
 }
 
 private data class AddEntry(val label: String, val hint: String, val module: ContentModule)
-
 private val addEntries = listOf(
     AddEntry("共同照片", "相册里的日常", ContentModule.PHOTO),
     AddEntry("一起做过的菜", "给这顿饭标星", ContentModule.DISH),
@@ -322,14 +360,32 @@ private fun AddEntryDialog(onDismiss: () -> Unit, onPick: (ContentModule) -> Uni
     )
 }
 
+/** 排序胶囊：与分类 chip 同一视觉语言，「倒序/正序」始终不高亮以表示它是开关。 */
+@Composable
+private fun SortChip(text: String, selected: Boolean, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(999.dp))
+            .background(if (selected) S520JColors.Primary else S520JColors.Surface)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 10.dp, vertical = 6.dp)
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.labelSmall,
+            color = if (selected) Color.White else S520JColors.TextSecondary,
+            maxLines = 1
+        )
+    }
+}
+
 @Composable
 private fun StatCard(
     title: String,
     count: Int,
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null
-) {
-    SoftCard(modifier = modifier, onClick = onClick) {
+) {    SoftCard(modifier = modifier, onClick = onClick) {
         Text(title, style = MaterialTheme.typography.labelSmall, color = S520JColors.TextSecondary)
         Spacer(Modifier.height(4.dp))
         Text(

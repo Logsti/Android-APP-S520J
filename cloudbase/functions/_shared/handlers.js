@@ -10,6 +10,7 @@ const {
   requireAccountId, requirePassword, requireNickname,
   now, RECYCLE_TTL, publicUser, requireSession, issueSession, assertMember, spaceOfUser, canRead,
 } = require('./core');
+const { dishList, dishPick, dishSyncHandler } = require('./dishHandlers');
 
 // ---------------------------------------------------------------- auth
 async function register(payload) {
@@ -1124,6 +1125,10 @@ const actions = {
   'media.fetch': { handler: mediaFetch },
 
   'backup.create': { handler: backupCreate },
+
+  'dish.list': { handler: dishList },
+  'dish.pick': { handler: dishPick },
+  'dish.sync': { handler: dishSyncHandler },
 };
 
 async function dispatch(action, payload, token) {

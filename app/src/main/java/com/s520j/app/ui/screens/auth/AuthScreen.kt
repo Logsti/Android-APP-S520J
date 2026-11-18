@@ -36,6 +36,7 @@ import com.s520j.app.ui.AppViewModel
 import com.s520j.app.ui.components.PrimaryPillButton
 import com.s520j.app.ui.components.SoftCard
 import com.s520j.app.ui.components.SoftTextField
+import com.s520j.app.ui.components.showTimedMessage
 import com.s520j.app.ui.theme.Dimens
 import com.s520j.app.ui.theme.S520JColors
 
@@ -51,7 +52,7 @@ fun AuthScreen(vm: AppViewModel) {
     val snackbarHostState = remember { SnackbarHostState() }
 
     LaunchedEffect(Unit) {
-        vm.messages.collect { message -> snackbarHostState.showSnackbar(message.text) }
+        vm.messages.collect { message -> snackbarHostState.showTimedMessage(message) }
     }
 
     Box(

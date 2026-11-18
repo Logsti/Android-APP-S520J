@@ -139,7 +139,7 @@ class AppViewModel @Inject constructor(
     val customPokes: StateFlow<List<String>> = prefs.customPokes
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
-    /** 对方碰一碰 / 挑战达成的应用内横幅，自动 6 秒后消失。 */
+    /** 对方碰一碰 / 挑战达成的应用内横幅，自动 2 秒后消失。 */
     private val _pokeBanner = MutableStateFlow<CoupleEvent?>(null)
     val pokeBanner: StateFlow<CoupleEvent?> = _pokeBanner
 
@@ -559,13 +559,14 @@ class AppViewModel @Inject constructor(
             syncNow()
         }
 
-    fun deleteRecord(id: String) = viewModelScope.launch {
+    fun deleteRecord(id: String, onDone: () -> Unit = {}) = viewModelScope.launch {
         if (isReadOnly.value) {
             send(READ_ONLY_MESSAGE)
             return@launch
         }
         contentRepository.softDelete(id)
         send("已移入回收站，保留 30 天")
+        onDone()
     }
 
     fun restoreRecord(id: String) = viewModelScope.launch {

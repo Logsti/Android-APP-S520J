@@ -156,12 +156,67 @@ class PhotoFeedTest {
         assertTrue(PhotoFeed.sharedPhotos(emptyList()).isEmpty())
     }
 
+    @Test
+    fun `按记录时间正序排列`() {
+        val records = listOf(
+            record(ContentModule.PHOTO, "十月", createdAt = 30L, mediaIds = listOf("u")),
+            record(ContentModule.PHOTO, "八月", createdAt = 10L, mediaIds = listOf("u")),
+            record(ContentModule.PHOTO, "九月", createdAt = 20L, mediaIds = listOf("u"))
+        )
+
+        assertEquals(
+            listOf("八月", "九月", "十月"),
+            PhotoFeed.feed(records, byEventDate = false, ascending = true).map { it.title }
+        )
+    }
+
+    @Test
+    fun `按填写日期倒序排列`() {
+        val records = listOf(
+            record(ContentModule.PHOTO, "八月", createdAt = 10L, mediaIds = listOf("u"), eventDate = 10L),
+            record(ContentModule.PHOTO, "十月", createdAt = 20L, mediaIds = listOf("u"), eventDate = 30L),
+            record(ContentModule.PHOTO, "九月", createdAt = 30L, mediaIds = listOf("u"), eventDate = 20L)
+        )
+
+        assertEquals(
+            listOf("十月", "九月", "八月"),
+            PhotoFeed.feed(records, byEventDate = true).map { it.title }
+        )
+    }
+
+    @Test
+    fun `按填写日期正序排列`() {
+        val records = listOf(
+            record(ContentModule.PHOTO, "十月", createdAt = 20L, mediaIds = listOf("u"), eventDate = 30L),
+            record(ContentModule.PHOTO, "八月", createdAt = 30L, mediaIds = listOf("u"), eventDate = 10L)
+        )
+
+        assertEquals(
+            listOf("八月", "十月"),
+            PhotoFeed.feed(records, byEventDate = true, ascending = true).map { it.title }
+        )
+    }
+
+    @Test
+    fun `未填写日期时按记录时间参与排序`() {
+        val records = listOf(
+            record(ContentModule.PHOTO, "无日期", createdAt = 25L, mediaIds = listOf("u")),
+            record(ContentModule.PHOTO, "有日期", createdAt = 99L, mediaIds = listOf("u"), eventDate = 20L)
+        )
+
+        assertEquals(
+            listOf("无日期", "有日期"),
+            PhotoFeed.feed(records, byEventDate = true).map { it.title }
+        )
+    }
+
     private fun record(
         module: ContentModule,
         title: String = module.name,
         createdAt: Long = 0L,
         mediaIds: List<String> = emptyList(),
-        content: String = ""
+        content: String = "",
+        eventDate: Long? = null
     ): ContentRecord = ContentRecord(
         id = "test-$title",
         module = module,
@@ -171,7 +226,7 @@ class PhotoFeedTest {
         visibility = Visibility.COUPLE,
         title = title,
         content = content,
-        eventDate = null,
+        eventDate = eventDate,
         mediaIds = mediaIds,
         extra = emptyMap(),
         createdAt = createdAt,

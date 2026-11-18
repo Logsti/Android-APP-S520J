@@ -71,6 +71,9 @@ class UserPreferences @Inject constructor(
         val SYNC_FAILURE_SIGNATURE = stringPreferencesKey("sync_failure_signature")
         val SYNC_FAILURE_ALERTED = booleanPreferencesKey("sync_failure_alerted")
         val SYNC_FAILURE_GENERATION = longPreferencesKey("sync_failure_generation")
+        // 今天吃啥：本机只存头图路径与「新菜优先」偏好，点过的菜只存云端。
+        val DISH_HEADER_PATH = stringPreferencesKey("dish_header_path")
+        val DISH_PREFER_NEW = booleanPreferencesKey("dish_prefer_new")
     }
 
     val session: Flow<SessionProfile> = context.dataStore.data.map { p ->
@@ -113,6 +116,12 @@ class UserPreferences @Inject constructor(
 
     /** 对方头像图片 URI，未设置时为空。 */
     val partnerAvatar: Flow<String?> = context.dataStore.data.map { it[Keys.PARTNER_AVATAR_URI] }
+
+    /** 点菜页自定义头图路径（APP 私有目录），未设置时用打包的默认图。 */
+    val dishHeaderPath: Flow<String?> = context.dataStore.data.map { it[Keys.DISH_HEADER_PATH] }
+
+    /** 「优先出新菜」开关：仅本机 UI 偏好，不与点过的菜记录混存。 */
+    val dishPreferNew: Flow<Boolean> = context.dataStore.data.map { it[Keys.DISH_PREFER_NEW] ?: true }
 
     suspend fun saveSession(profile: SessionProfile) {
         context.dataStore.edit { p ->
@@ -307,5 +316,23 @@ class UserPreferences @Inject constructor(
             p[Keys.SYNC_FAILURE_ALERTED] = track.alerted
             p[Keys.SYNC_FAILURE_GENERATION] = track.generation
         }
+    }
+
+    // ---------- 今天吃啥 ----------
+
+    suspend fun dishHeaderPathSnapshot(): String? =
+        context.dataStore.data.first()[Keys.DISH_HEADER_PATH]?.takeIf { it.isNotBlank() }
+
+    suspend fun setDishHeaderPath(path: String?) {
+        context.dataStore.edit { p ->
+            if (path.isNullOrBlank()) p.remove(Keys.DISH_HEADER_PATH) else p[Keys.DISH_HEADER_PATH] = path
+        }
+    }
+
+    suspend fun dishPreferNewSnapshot(): Boolean =
+        context.dataStore.data.first()[Keys.DISH_PREFER_NEW] ?: true
+
+    suspend fun setDishPreferNew(value: Boolean) {
+        context.dataStore.edit { it[Keys.DISH_PREFER_NEW] = value }
     }
 }

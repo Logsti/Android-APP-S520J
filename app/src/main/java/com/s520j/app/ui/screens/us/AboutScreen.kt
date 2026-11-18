@@ -8,6 +8,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.s520j.app.ui.components.BackBar
 import com.s520j.app.ui.components.DetailRow
@@ -39,14 +40,7 @@ fun AboutScreen(onBack: () -> Unit) {
             style = MaterialTheme.typography.displayLarge,
             color = S520JColors.Primary
         )
-        Spacer(Modifier.height(4.dp))
-        Text(
-            text = "两个独立的人，一段共同的日子。",
-            style = MaterialTheme.typography.bodyMedium,
-            color = S520JColors.TextSecondary
-        )
-
-        Spacer(Modifier.height(22.dp))
+        Spacer(Modifier.height(24.dp))
 
         SectionHeader(title = "应用信息", subtitle = "本页为只读信息")
         Spacer(Modifier.height(10.dp))
@@ -56,7 +50,7 @@ fun AboutScreen(onBack: () -> Unit) {
             DetailRow("更新日期", "2026 年 11 月 6 日")
             DetailRow("作者", "LKS")
             Spacer(Modifier.height(10.dp))
-            TagPill("阶段一 · 本地 Mock")
+            TagPill("本地缓存 · 云端同步")
         }
 
         Spacer(Modifier.height(Dimens.SectionGap))
@@ -65,13 +59,14 @@ fun AboutScreen(onBack: () -> Unit) {
         Spacer(Modifier.height(10.dp))
         SoftCard(containerColor = S520JColors.Sand) {
             Text(
-                text = "给两个人用的共同生活记录本：账号各自独立，共同内容一起维护，私人内容只属于自己。",
-                style = MaterialTheme.typography.bodyMedium,
-                color = S520JColors.TextSecondary
+                text = "致一周年的我们，共同生活记录本",
+                style = MaterialTheme.typography.titleMedium,
+                color = S520JColors.TextPrimary,
+                fontWeight = FontWeight.Bold
             )
             Spacer(Modifier.height(8.dp))
             Text(
-                text = "致一周年的我们",
+                text = "这是一本只属于两个人的记录本：共同的内容一起维护，私人的内容只属于自己。",
                 style = MaterialTheme.typography.bodyMedium,
                 color = S520JColors.TextSecondary
             )
@@ -91,7 +86,7 @@ fun AboutScreen(onBack: () -> Unit) {
             )
             Spacer(Modifier.height(6.dp))
             Text(
-                text = "阶段一为本地 Mock 版本，账号与内容保存在本机；接入云端后会补全跨设备同步与导出能力。",
+                text = "内容保存在本机缓存并同步到云端，换设备登录后可继续使用；在「我们-数据管理」中可导出数据，删除的内容会先进入回收站，保留 30 天。",
                 style = MaterialTheme.typography.bodyMedium,
                 color = S520JColors.TextSecondary
             )

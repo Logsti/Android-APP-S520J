@@ -21,7 +21,9 @@ if (!envId || !apiKey) {
   process.exit(1);
 }
 
-const groups = ['auth', 'space', 'content', 'sync', 'media', 'recycle', 'notification', 'settings', 'backup'];
+const groups = ['auth', 'space', 'content', 'sync', 'media', 'recycle', 'notification', 'settings', 'backup', 'dishSync'];
+// dishSync 只由定时触发器调用，不对外暴露 HTTP 路由。
+const httpGroups = groups.filter((name) => name !== 'dishSync');
 
 const config = {
   $schema: 'https://static.cloudbase.net/cli/cloudbaserc.schema.json',
@@ -29,20 +31,24 @@ const config = {
   functionRoot: 'cloudbase/functions',
   functions: groups.map((name) => ({
     name,
-    timeout: 20,
+    timeout: name === 'dishSync' ? 60 : 20,
     runtime: 'Nodejs20.19',
     handler: 'index.main',
     // CB_API_KEY 仅用于云函数 → gateway exec-pgsql，禁止下发客户端。
+    // SHOWAPI_APP_KEY（菜谱大全）由用户在 CloudBase 控制台单独配置。
     envVariables: {
       CB_ENV_ID: envId,
       CB_API_KEY: apiKey,
       CB_PG_ROLE: 'cloudbase_postgres',
     },
+    ...(name === 'dishSync'
+      ? { triggers: [{ name: 'dishSyncDaily', type: 'timer', config: '0 30 3 * * * *' }] }
+      : {}),
   })),
   // HTTP 访问服务：不指定 domain 时使用环境默认域名，客户端据此直连。
   // enableAuth=false：由云函数内部校验自有 access token，不依赖云开发登录态。
   gateway: {
-    routes: groups.map((name) => ({
+    routes: httpGroups.map((name) => ({
       path: `/api/${name}`,
       target: `function:${name}`,
     })),
